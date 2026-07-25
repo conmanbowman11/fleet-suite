@@ -227,6 +227,33 @@ export default function EquipmentDetailPage() {
     setParts(parts.filter((p) => p.id !== id));
   }
 
+  async function deleteLog(id: string) {
+    const ok = window.confirm("Delete this log entry? This can't be undone.");
+    if (!ok) return;
+    const { error } = await supabase.from("service_logs").delete().eq("id", id);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setLogs(logs.filter((l) => l.id !== id));
+  }
+
+  async function deleteMachine() {
+    const ok = window.confirm(
+      `Delete ${equipment.nickname} for good?\n\nThis also permanently deletes its ENTIRE service history, parts list, and maintenance schedules. There is no undo.\n\nIf you're retiring or selling the machine, keep it instead - the printed history is worth money at resale.`
+    );
+    if (!ok) return;
+    const { error } = await supabase
+      .from("equipment")
+      .delete()
+      .eq("id", equipmentId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    router.replace("/equipment");
+  }
+
   function formatDate(d: string) {
     const [y, m, day] = d.split("-");
     return `${m}/${day}/${y}`;
@@ -615,6 +642,7 @@ export default function EquipmentDetailPage() {
                 <th className="py-2 pr-2">Service</th>
                 <th className="py-2 pr-2">Hours</th>
                 <th className="py-2">By</th>
+                <th className="no-print py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -635,11 +663,29 @@ export default function EquipmentDetailPage() {
                       : "—"}
                   </td>
                   <td className="py-2">{log.performed_by || "—"}</td>
+                  <td className="no-print py-2 pl-2 text-right">
+                    <button
+                      onClick={() => deleteLog(log.id)}
+                      className="text-xs text-faded underline"
+                      aria-label="Delete this log entry"
+                    >
+                      ✕
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="no-print mt-6 text-center">
+        <button
+          onClick={deleteMachine}
+          className="text-sm text-faded underline hover:text-safety"
+        >
+          Delete this machine and all its records
+        </button>
       </div>
     </main>
   );
