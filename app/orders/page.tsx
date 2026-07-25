@@ -149,6 +149,20 @@ export default function OrdersPage() {
     setBusy(false);
   }
 
+  async function deleteOrder(order: any) {
+    const ok = window.confirm(
+      `Delete this order to ${order.supplier}? It disappears from your order history for good.`
+    );
+    if (!ok) return;
+    const { error } = await supabase.from("orders").delete().eq("id", order.id);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setOrders(orders.filter((o) => o.id !== order.id));
+    setManifest(null);
+  }
+
   function orderText(order: any) {
     const lines = [
       `Parts order from ${farm?.name}`,
@@ -244,6 +258,15 @@ export default function OrdersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="no-print mt-6 text-center">
+          <button
+            onClick={() => deleteOrder(manifest)}
+            className="text-sm text-faded underline hover:text-safety"
+          >
+            Delete this order
+          </button>
         </div>
       </main>
     );
