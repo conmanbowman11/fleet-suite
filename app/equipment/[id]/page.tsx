@@ -238,9 +238,37 @@ export default function EquipmentDetailPage() {
     setLogs(logs.filter((l) => l.id !== id));
   }
 
+  async function retireMachine() {
+    const ok = window.confirm(
+      `Retire ${equipment.nickname}? Its records are kept and it can be brought back anytime.`
+    );
+    if (!ok) return;
+    const { error } = await supabase
+      .from("equipment")
+      .update({ is_active: false })
+      .eq("id", equipmentId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setEquipment({ ...equipment, is_active: false });
+  }
+
+  async function reactivateMachine() {
+    const { error } = await supabase
+      .from("equipment")
+      .update({ is_active: true })
+      .eq("id", equipmentId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setEquipment({ ...equipment, is_active: true });
+  }
+
   async function deleteMachine() {
     const ok = window.confirm(
-      `Delete ${equipment.nickname} for good?\n\nThis also permanently deletes its ENTIRE service history, parts list, and maintenance schedules. There is no undo.\n\nIf you're retiring or selling the machine, keep it instead - the printed history is worth money at resale.`
+      `Permanently delete ${equipment.nickname} and all its records? This cannot be undone.`
     );
     if (!ok) return;
     const { error } = await supabase
@@ -297,7 +325,14 @@ export default function EquipmentDetailPage() {
         <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-faded">
           {farm?.name} — Equipment Service Record
         </div>
-        <h1 className="text-2xl font-bold">{equipment.nickname}</h1>
+        <h1 className="text-2xl font-bold">
+          {equipment.nickname}
+          {!equipment.is_active && (
+            <span className="no-print ml-2 align-middle rounded bg-seam px-2 py-0.5 text-xs font-bold tracking-wider text-faded">
+              RETIRED
+            </span>
+          )}
+        </h1>
         <p className="mb-4 text-sm text-faded">
           {[equipment.make, equipment.model].filter(Boolean).join(" ")}
           {equipment.serial_number ? ` · SN ${equipment.serial_number}` : ""}
@@ -679,13 +714,30 @@ export default function EquipmentDetailPage() {
         )}
       </div>
 
-      <div className="no-print mt-6 text-center">
-        <button
-          onClick={deleteMachine}
-          className="text-sm text-faded underline hover:text-safety"
-        >
-          Delete this machine and all its records
-        </button>
+      <div className="no-print mt-6 space-y-3 text-center">
+        {equipment.is_active ? (
+          <button
+            onClick={retireMachine}
+            className="rounded border border-seam bg-plate px-4 py-2 text-sm font-bold text-faded hover:border-steel hover:text-steel"
+          >
+            Retire this machine (records are kept)
+          </button>
+        ) : (
+          <button
+            onClick={reactivateMachine}
+            className="rounded bg-steel px-4 py-2 text-sm font-bold text-white hover:bg-steelLight"
+          >
+            Return to active fleet
+          </button>
+        )}
+        <div>
+          <button
+            onClick={deleteMachine}
+            className="text-xs text-faded underline hover:text-safety"
+          >
+            Permanently delete machine and all records
+          </button>
+        </div>
       </div>
     </main>
   );
