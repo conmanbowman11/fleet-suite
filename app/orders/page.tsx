@@ -151,7 +151,7 @@ export default function OrdersPage() {
 
   async function deleteOrder(order: any) {
     const ok = window.confirm(
-      `Delete this order to ${order.supplier}? It disappears from your order history for good.`
+      "Delete this order? This cannot be undone."
     );
     if (!ok) return;
     const { error } = await supabase.from("orders").delete().eq("id", order.id);
