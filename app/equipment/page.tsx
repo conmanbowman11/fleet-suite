@@ -17,6 +17,7 @@ type Equipment = {
   model: string | null;
   serial_number: string | null;
   current_hours: number | null;
+  is_active: boolean;
 };
 
 export default function EquipmentPage() {
@@ -27,6 +28,7 @@ export default function EquipmentPage() {
   const [logs, setLogs] = useState<LogLite[]>([]);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showRetired, setShowRetired] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Add-equipment form fields
@@ -47,7 +49,7 @@ export default function EquipmentPage() {
       }
       setFarm(myFarm);
       const [{ data: eq }, { data: sch }, { data: lg }] = await Promise.all([
-        supabase.from("equipment").select("*").eq("is_active", true).order("nickname"),
+        supabase.from("equipment").select("*").order("nickname"),
         supabase.from("service_schedules").select("*"),
         supabase
           .from("service_logs")
@@ -99,11 +101,13 @@ export default function EquipmentPage() {
     setBusy(false);
   }
 
-  const visible = equipment.filter((eq) =>
+  const matches = equipment.filter((eq) =>
     (eq.nickname + " " + (eq.make || "") + " " + (eq.model || ""))
       .toLowerCase()
       .includes(search.toLowerCase())
   );
+  const visible = matches.filter((eq) => eq.is_active);
+  const retired = matches.filter((eq) => !eq.is_active);
 
   function badgeFor(eq: Equipment): { label: string; cls: string } | null {
     const mine = schedules.filter((s) => s.equipment_id === eq.id);
@@ -241,6 +245,41 @@ export default function EquipmentPage() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {retired.length > 0 && (
+        <div className="mt-6">
+          <button
+            onClick={() => setShowRetired(!showRetired)}
+            className="mb-3 text-sm text-faded underline"
+          >
+            {showRetired
+              ? "Hide retired"
+              : `Show retired (${retired.length})`}
+          </button>
+          {showRetired && (
+            <div className="space-y-3">
+              {retired.map((eq) => (
+                <button
+                  key={eq.id}
+                  onClick={() => router.push(`/equipment/${eq.id}`)}
+                  className="block w-full rounded-lg border border-seam bg-field p-4 text-left opacity-70 hover:opacity-100"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-lg font-bold">{eq.nickname}</span>
+                    <span className="rounded bg-seam px-2 py-0.5 text-xs font-bold tracking-wider text-faded">
+                      RETIRED
+                    </span>
+                  </div>
+                  <p className="text-sm text-faded">
+                    {[eq.make, eq.model].filter(Boolean).join(" ") || "—"}
+                    {eq.serial_number ? ` · SN ${eq.serial_number}` : ""}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </main>
