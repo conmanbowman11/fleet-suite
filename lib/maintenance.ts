@@ -1,112 +1,103 @@
-// Maintenance logic — "facts, not judgments" for engine hours.
+// MAINTENANCE STATUS for one service on one machine.
 //
-// The app only knows engine hours when a person enters them, so it never
-// claims a machine is overdue based on hours. Instead it states the fact:
-//   "last done at 3,948 hrs -> next due at 4,448 hrs"
-// and the mechanic compares that against the meter in the cab.
+// Hours and miles are FACTS, not alarms: the app only knows a meter
+// reading when someone enters it, so it shows "next due at 4,448 hrs"
+// and the mechanic compares that with the meter on the machine.
 //
-// Calendar intervals (every X months) ARE judged, because the app always
-// knows today's date. Those produce OVERDUE / DUE SOON / NO RECORD badges.
+// Calendar intervals ARE judged, because the app always knows today's
+// date: OVERDUE, DUE SOON (within 14 days), OK, or NO RECORD.
 
-export type Schedule = {
-  id: string;
-  equipment_id: string;
-  service_type_id: string;
-  interval_hours: number | null;
-  interval_months: number | null;
-  service_types?: { name: string } | null;
-};
+import { MachineService } from "@/lib/supabase";
 
-export type LogLite = {
-  equipment_id: string;
-  service_type_id: string;
-  service_date: string;
-  engine_hours: number | null;
-};
-
-// status null = no judgment (hours-only schedule); detail is always shown
 export type Status = "overdue" | "due_soon" | "ok" | "no_record";
 
-const RANK: Record<Status, number> = {
-  overdue: 3,
-  due_soon: 2,
-  no_record: 1,
-  ok: 0,
+export type LastDone = { service_date: string; meter_reading: number | null } | null;
+
+export type ServiceStatus = {
+  status: Status | null; // null = hours/miles only, no judgment
+  lastDate: string | null;
+  lastReading: number | null;
+  nextDueReading: number | null;
+  nextDueDate: string | null; // YYYY-MM-DD
+  daysLeft: number | null; // negative = days past due
 };
 
-export function scheduleStatus(
-  schedule: Schedule,
-  logs: LogLite[]
-): { status: Status | null; detail: string } {
-  const relevant = logs
-    .filter(
-      (l) =>
-        l.equipment_id === schedule.equipment_id &&
-        l.service_type_id === schedule.service_type_id
-    )
-    .sort((a, b) => (a.service_date < b.service_date ? 1 : -1));
+const DUE_SOON_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-  const last = relevant[0];
-  const details: string[] = [];
-
-  // ---- Hours: facts only, never a judgment ----
-  if (schedule.interval_hours) {
-    if (last && last.engine_hours != null) {
-      const dueAt = last.engine_hours + Number(schedule.interval_hours);
-      details.push(
-        `last at ${last.engine_hours.toLocaleString()} hrs → next due at ${dueAt.toLocaleString()} hrs`
-      );
-    } else if (last) {
-      details.push("last service logged without hours");
-    }
-  }
-
-  // ---- Calendar: the app knows today's date, so it can judge ----
-  let status: Status | null = null;
-  if (schedule.interval_months) {
-    if (!last) {
-      status = "no_record";
-    } else {
-      const lastDate = new Date(last.service_date + "T00:00:00");
-      const dueDate = new Date(lastDate);
-      dueDate.setMonth(dueDate.getMonth() + schedule.interval_months);
-      const today = new Date();
-      const daysLeft = Math.round(
-        (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (daysLeft <= 0) {
-        status = "overdue";
-        details.push(`${Math.abs(daysLeft)} days past due`);
-      } else if (daysLeft <= 14) {
-        status = "due_soon";
-        details.push(`due in ${daysLeft} days`);
-      } else {
-        status = "ok";
-        details.push(`next by ${dueDate.toLocaleDateString()}`);
-      }
-    }
-  }
-
-  if (!last && details.length === 0) {
-    details.push("no service on record yet");
-  }
-
-  return { status, detail: details.join(" · ") };
+function addMonths(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1 + months, 1));
+  // keep the day of month, but not past the end of the month
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(d, lastDay));
+  return date.toISOString().slice(0, 10);
 }
 
-// Worst calendar-based status across a machine's schedules (for list badges).
-// Hours-only schedules never produce a badge.
-export function equipmentStatus(
-  schedules: Schedule[],
-  logs: LogLite[]
-): Status | null {
-  let worst: Status | null = null;
-  for (const s of schedules) {
-    if (!s.interval_months) continue;
-    const { status } = scheduleStatus(s, logs);
-    if (status && (worst === null || RANK[status] > RANK[worst])) {
-      worst = status;
+export function serviceStatus(
+  svc: Pick<MachineService, "interval_meter" | "interval_months">,
+  last: LastDone,
+  today: string
+): ServiceStatus {
+  const result: ServiceStatus = {
+    status: null,
+    lastDate: last?.service_date ?? null,
+    lastReading: last?.meter_reading ?? null,
+    nextDueReading: null,
+    nextDueDate: null,
+    daysLeft: null,
+  };
+
+  // Hours / miles: state the next-due reading, never judge it
+  if (svc.interval_meter && last && last.meter_reading !== null) {
+    result.nextDueReading = Number(last.meter_reading) + Number(svc.interval_meter);
+  }
+
+  // Calendar: judge it
+  if (svc.interval_months) {
+    if (!last) {
+      result.status = "no_record";
+    } else {
+      result.nextDueDate = addMonths(last.service_date, svc.interval_months);
+      const days = Math.round(
+        (Date.parse(result.nextDueDate + "T12:00:00") - Date.parse(today + "T12:00:00")) / DAY_MS
+      );
+      result.daysLeft = days;
+      result.status = days < 0 ? "overdue" : days <= DUE_SOON_DAYS ? "due_soon" : "ok";
     }
+  } else if (svc.interval_meter && !last) {
+    // Hours-only service that's never been logged: flag it so it gets a starting point
+    result.status = "no_record";
+  }
+
+  return result;
+}
+
+const RANK: Record<Status, number> = { overdue: 3, due_soon: 2, no_record: 1, ok: 0 };
+
+// The worst status across a machine's services (for list badges)
+export function worstStatus(statuses: (Status | null)[]): Status | null {
+  let worst: Status | null = null;
+  for (const s of statuses) {
+    if (s && (worst === null || RANK[s] > RANK[worst])) worst = s;
   }
   return worst;
+}
+
+// Newest log entry per machine service, from a list of entries
+export function latestByService<
+  T extends { machine_service_id: string; service_date: string; created_at?: string }
+>(entries: T[]): Map<string, T> {
+  const map = new Map<string, T>();
+  for (const e of entries) {
+    const cur = map.get(e.machine_service_id);
+    if (
+      !cur ||
+      e.service_date > cur.service_date ||
+      (e.service_date === cur.service_date && (e.created_at || "") > (cur.created_at || ""))
+    ) {
+      map.set(e.machine_service_id, e);
+    }
+  }
+  return map;
 }
