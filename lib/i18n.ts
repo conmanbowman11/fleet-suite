@@ -123,6 +123,7 @@ const en = {
   nickname_required: "Give the machine a nickname.",
   unit_taken: "Another machine already uses that unit number.",
   same_model_prompt: "{n} other {model} already set up. Copy their services?",
+  open_issues_n: "Open issues: {n}",
 
   // ---- Machine page ----
   log_work: "Log work",
@@ -157,6 +158,7 @@ const en = {
   interval: "Interval",
   every_reading: "Every {n} {unit}",
   every_months: "Every {n} months",
+  every_month: "Every month",
   interval_meter_label: "Every how many {unit}?",
   interval_months_label: "Every how many months?",
   no_interval: "No interval",
@@ -178,6 +180,8 @@ const en = {
   next_due_reading: "Next due at {reading}",
   part_new: "+ Add “{text}” as a new part",
   part_exists: "Already in the catalog",
+  kit_already: "That part is already in this kit.",
+  name_new: "+ Add “{text}” as a new name",
 
   // ---- Status badges ----
   status_overdue: "OVERDUE",
@@ -424,6 +428,7 @@ const es: Record<Key, string> = {
   nickname_required: "Escriba un apodo para la máquina.",
   unit_taken: "Otra máquina ya usa ese número de unidad.",
   same_model_prompt: "Ya hay {n} {model} configuradas. ¿Copiar sus servicios?",
+  open_issues_n: "Problemas abiertos: {n}",
 
   // ---- Machine page ----
   log_work: "Registrar trabajo",
@@ -458,6 +463,7 @@ const es: Record<Key, string> = {
   interval: "Intervalo",
   every_reading: "Cada {n} {unit}",
   every_months: "Cada {n} meses",
+  every_month: "Cada mes",
   interval_meter_label: "¿Cada cuántas {unit}?",
   interval_months_label: "¿Cada cuántos meses?",
   no_interval: "Sin intervalo",
@@ -479,6 +485,8 @@ const es: Record<Key, string> = {
   next_due_reading: "Próximo a {reading}",
   part_new: "+ Agregar “{text}” como parte nueva",
   part_exists: "Ya está en el catálogo",
+  kit_already: "Esa parte ya está en este kit.",
+  name_new: "+ Agregar “{text}” como nombre nuevo",
 
   // ---- Status badges ----
   status_overdue: "VENCIDO",
