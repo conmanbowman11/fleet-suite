@@ -1,35 +1,31 @@
 "use client";
 
-// The home page is a traffic director:
-//   Not logged in  -> /login
-//   Logged in, no farm yet -> /setup
-//   Logged in with a farm  -> /equipment
+// THE FRONT DOOR. Sends each device to the right place:
+//   not signed in        -> /login
+//   signed in, no farm   -> /setup
+//   no people yet        -> /who (add the first person)
+//   device not set up    -> /device (Personal or Shared)
+//   nobody picked        -> /who
+//   otherwise            -> Equipment (mechanics) or PM (owners)
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, getMyFarm } from "@/lib/supabase";
+import { useSession } from "@/lib/session";
+import { Loading, startPathFor } from "@/components/ui";
 
 export default function Home() {
+  const { status, activePeople, device, person } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    async function route() {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        router.replace("/login");
-        return;
-      }
-      const farm = await getMyFarm();
-      router.replace(farm ? "/equipment" : "/setup");
-    }
-    route();
-  }, [router]);
+    if (status === "loading") return;
+    if (status === "signed_out") return router.replace("/login");
+    if (status === "no_farm") return router.replace("/setup");
+    if (activePeople.length === 0) return router.replace("/who");
+    if (!device) return router.replace("/device");
+    if (!person) return router.replace("/who");
+    router.replace(startPathFor(person));
+  }, [status, activePeople, device, person, router]);
 
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <p className="text-faded text-sm tracking-widest uppercase">
-        Loading Fleet Suite…
-      </p>
-    </main>
-  );
+  return <Loading />;
 }
