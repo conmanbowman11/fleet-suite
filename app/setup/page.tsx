@@ -1,78 +1,75 @@
 "use client";
 
-// One-time screen after account creation: name your farm.
-// This creates the "farms" row that all your data hangs off of.
+// ONE-TIME FARM SETUP right after the account is created.
+// Creates the farm that every machine, person, and record belongs to.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useSession } from "@/lib/session";
+import { ErrorText, Loading, btnPrimary, cardCls, inputCls } from "@/components/ui";
 
 export default function SetupPage() {
+  const { status, t, refresh } = useSession();
   const router = useRouter();
   const [farmName, setFarmName] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function createFarm() {
+  useEffect(() => {
+    if (status === "signed_out") router.replace("/login");
+    if (status === "ready") router.replace("/");
+  }, [status, router]);
+
+  async function createFarm(e: React.FormEvent) {
+    e.preventDefault();
     setMessage("");
     if (!farmName.trim()) {
-      setMessage("Give your farm a name.");
+      setMessage(t("farm_name_required"));
       return;
     }
     setBusy(true);
-
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user;
     if (!user) {
       router.replace("/login");
       return;
     }
-
     const { error } = await supabase.from("farms").insert({
       owner_user_id: user.id,
       name: farmName.trim(),
       contact_email: user.email,
     });
-
     if (error) {
       setMessage(error.message);
       setBusy(false);
       return;
     }
-
-    router.replace("/equipment");
+    await refresh();
+    router.replace("/");
   }
+
+  if (status !== "no_farm") return <Loading />;
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-lg border border-seam bg-plate p-6 shadow-sm">
-        <h1 className="mb-1 text-lg font-semibold">Name your farm</h1>
-        <p className="mb-4 text-sm text-faded">
-          This shows up on printed service records.
-        </p>
-
+      <form onSubmit={createFarm} className={`${cardCls} w-full max-w-sm space-y-4 p-6`}>
+        <div>
+          <h1 className="text-lg font-semibold">{t("farm_name_title")}</h1>
+          <p className="text-sm text-faded">{t("farm_name_hint")}</p>
+        </div>
         <input
           type="text"
           value={farmName}
           onChange={(e) => setFarmName(e.target.value)}
-          className="mb-4 w-full rounded border border-seam p-3 text-base"
-          placeholder="e.g. Bowman Family Farms"
+          className={inputCls}
+          placeholder="Bowman Family Farms"
         />
-
-        {message && (
-          <p className="mb-4 rounded bg-orange-50 p-3 text-sm text-safety">
-            {message}
-          </p>
-        )}
-
-        <button
-          onClick={createFarm}
-          disabled={busy}
-          className="w-full rounded bg-safety p-3 text-base font-bold text-white hover:bg-safetyDark disabled:opacity-50"
-        >
-          {busy ? "Saving…" : "Save and continue"}
+        <ErrorText>{message}</ErrorText>
+        <button type="submit" disabled={busy} className={`${btnPrimary} w-full`}>
+          {busy ? t("saving") : t("save_continue")}
         </button>
-      </div>
+      </form>
     </main>
   );
 }
