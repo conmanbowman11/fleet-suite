@@ -146,6 +146,12 @@ function EquipmentList() {
         </button>
       </div>
 
+      {machines.some((m) => m.is_active) && !showAdd && (
+        <Link href="/batch" className={`${btnQuiet} mb-4 inline-block`}>
+          {t("batch_title")} →
+        </Link>
+      )}
+
       {showAdd && (
         <MachineForm
           onSaved={(m) => router.push(`/equipment/${m.id}?new=1`)}
