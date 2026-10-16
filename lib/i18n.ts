@@ -308,6 +308,8 @@ const en = {
   print_labels: "Print labels",
   scan_to_log: "Scan to log service",
   farm: "Farm",
+  max_miles: "Most miles a vehicle drives in a day (for reading warnings)",
+  builtin_note: "These come with every farm and can't be changed here.",
 };
 
 export type Key = keyof typeof en;
@@ -615,6 +617,8 @@ const es: Record<Key, string> = {
   print_labels: "Imprimir etiquetas",
   scan_to_log: "Escanee para registrar",
   farm: "Rancho",
+  max_miles: "Máximo de millas que un vehículo recorre en un día (para avisos de lectura)",
+  builtin_note: "Vienen con todos los ranchos y no se pueden cambiar aquí.",
 };
 
 const dictionaries: Record<Lang, Record<Key, string>> = { en, es };
