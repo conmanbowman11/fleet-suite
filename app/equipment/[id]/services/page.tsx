@@ -760,7 +760,7 @@ function CopyPanel({
                   <label className={"flex items-center gap-3 p-3 " + (has ? "opacity-40" : "")}>
                     <input
                       type="checkbox"
-                      className="h-5 w-5 accent-[#D9480F]"
+                      className="h-5 w-5 accent-[#1E5BA8]"
                       disabled={has}
                       checked={!!checked[j.id] && !has}
                       onChange={(e) => setChecked({ ...checked, [j.id]: e.target.checked })}
