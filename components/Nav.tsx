@@ -5,15 +5,18 @@
 //   Phone: a navy top bar with a menu button that slides the sidebar out.
 // Shows the farm, the sections (with an open-issues count), and who's
 // working. "Switch user" only appears on shared devices.
+// The Inventory link shows a count of parts that are low or out.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Boxes,
   CalendarCheck,
   ClipboardList,
   LayoutDashboard,
   Menu,
+  Package,
   Settings,
   Tractor,
   TriangleAlert,
@@ -28,6 +31,8 @@ const SECTIONS: { key: Key; path: string; Icon: typeof Tractor }[] = [
   { key: "nav_equipment", path: "/equipment", Icon: Tractor },
   { key: "nav_pm", path: "/pm", Icon: CalendarCheck },
   { key: "nav_issues", path: "/issues", Icon: TriangleAlert },
+  { key: "nav_parts", path: "/parts", Icon: Package },
+  { key: "nav_inventory", path: "/inventory", Icon: Boxes },
   { key: "nav_orders", path: "/orders", Icon: ClipboardList },
   { key: "nav_settings", path: "/settings", Icon: Settings },
 ];
@@ -38,6 +43,7 @@ export default function Nav() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [openIssues, setOpenIssues] = useState(0);
+  const [lowStock, setLowStock] = useState(0);
   const shared = device?.mode !== "personal";
 
   // Close the phone menu whenever the page changes
@@ -50,6 +56,14 @@ export default function Nav() {
       .select("id", { count: "exact", head: true })
       .eq("status", "open")
       .then(({ count }) => setOpenIssues(count || 0));
+    supabase
+      .from("inventory")
+      .select("on_hand, reorder_at")
+      .then(({ data }) =>
+        setLowStock(
+          (data || []).filter((i) => Number(i.on_hand) <= Math.max(Number(i.reorder_at ?? 0), 0)).length
+        )
+      );
   }, [pathname]);
 
   const current = SECTIONS.find((s) => pathname.startsWith(s.path));
@@ -86,6 +100,9 @@ export default function Nav() {
               <span className="flex-1">{t(key)}</span>
               {path === "/issues" && openIssues > 0 && (
                 <span className="rounded-full bg-danger px-2 text-xs font-semibold text-white">{openIssues}</span>
+              )}
+              {path === "/inventory" && lowStock > 0 && (
+                <span className="rounded-full bg-caution px-2 text-xs font-semibold text-ink">{lowStock}</span>
               )}
             </Link>
           );

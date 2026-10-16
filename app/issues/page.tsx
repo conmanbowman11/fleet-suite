@@ -1,7 +1,7 @@
 "use client";
 
 // ISSUES - every open problem across the fleet, urgent first.
-//   Mark fixed: opens Log work for that machine; saving closes the issue
+//   Mark fixed: opens Log a repair for that machine; saving closes the issue
 //               and links it to the repair entry
 //   Edit or delete an issue
 //   Show fixed: the history, each linked to the machine's log
@@ -135,7 +135,7 @@ function IssueList() {
                 <div className="mt-3 flex items-center gap-3">
                   {machineFor(i.equipment_id)?.is_active !== false && (
                     <Link
-                      href={`/equipment/${i.equipment_id}/log-work?issue=${i.id}`}
+                      href={`/equipment/${i.equipment_id}/repair?issue=${i.id}`}
                       className={`${btnPrimary} py-2 text-sm`}
                     >
                       {t("mark_fixed")}

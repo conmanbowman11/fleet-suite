@@ -5,12 +5,15 @@
 //   - Filter by services / repairs and by date range
 //   - Print what's showing (the resale and warranty record)
 //   - Edit (keeps an "Edited by" note) or delete an entry
+//   - Repairs show who did the work and open their invoices / photos
+//   - Deleting an entry puts its tracked parts back in Inventory
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   supabase,
+  CatalogPart,
   Equipment,
   Issue,
   LogEntry,
@@ -20,7 +23,9 @@ import {
   todayISO,
 } from "@/lib/supabase";
 import { useSession } from "@/lib/session";
-import { formatDate, formatReading, jobName } from "@/lib/i18n";
+import { entryName, formatDate, formatReading } from "@/lib/i18n";
+import { qtyText } from "@/lib/parts";
+import { FileText } from "lucide-react";
 import { AppPage, ErrorText, Loading, btnOutline, btnQuiet, cardCls, inputCls } from "@/components/ui";
 
 type Job = MachineService & { service_names: ServiceName | null };
@@ -44,6 +49,8 @@ function MachineLog() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [parts, setParts] = useState<PartUsed[]>([]);
   const [fixed, setFixed] = useState<Issue[]>([]);
+  const [units, setUnits] = useState<Record<string, string>>({});
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -53,7 +60,7 @@ function MachineLog() {
 
   useEffect(() => {
     (async () => {
-      const [eq, js, lg, iss] = await Promise.all([
+      const [eq, js, lg, iss, cat] = await Promise.all([
         supabase.from("equipment").select("*").eq("id", id).maybeSingle(),
         supabase.from("machine_services").select("*, service_names(*)").eq("equipment_id", id),
         supabase
@@ -63,6 +70,7 @@ function MachineLog() {
           .order("service_date", { ascending: false })
           .order("created_at", { ascending: false }),
         supabase.from("issues").select("*").eq("equipment_id", id).not("fixed_by_log", "is", null),
+        supabase.from("parts_catalog").select("id, unit"),
       ]);
       const logs = ((lg.data as LogEntry[]) || []).sort(
         (a, b) => b.service_date.localeCompare(a.service_date) || b.created_at.localeCompare(a.created_at)
@@ -80,6 +88,18 @@ function MachineLog() {
       setEntries(logs);
       setParts(used);
       setFixed((iss.data as Issue[]) || []);
+      setUnits(
+        Object.fromEntries(((cat.data as Pick<CatalogPart, "id" | "unit">[]) || []).map((c) => [c.id, c.unit]))
+      );
+
+      // Links to repair invoices and photos (good for one hour)
+      const paths = logs.flatMap((l) => (l.files || []).map((f) => f.path));
+      if (paths.length) {
+        const { data: signed } = await supabase.storage.from("repair-files").createSignedUrls(paths, 3600);
+        const urls: Record<string, string> = {};
+        for (const s of signed || []) if (s.path && s.signedUrl) urls[s.path] = s.signedUrl;
+        setFileUrls(urls);
+      }
       setLoading(false);
     })();
   }, [id]);
@@ -97,12 +117,13 @@ function MachineLog() {
 
     return entries.filter((e) => {
       const job = jobFor(e.machine_service_id);
-      if (type !== "all" && job?.category !== type) return false;
+      if (type !== "all" && (e.kind || job?.category) !== type) return false;
       if (range === "year" && e.service_date < yearStart) return false;
       if (range === "12m" && e.service_date < yearAgo) return false;
       if (!q) return true;
       const haystack = [
         e.notes,
+        e.vendor,
         job?.service_names?.name,
         job?.service_names?.name_es,
         personName(e.person_id),
@@ -121,6 +142,7 @@ function MachineLog() {
     if (!window.confirm(t("delete_entry_confirm"))) return;
     const { error } = await supabase.from("log_entries").delete().eq("id", e.id);
     if (error) return setMessage(error.message);
+    if (e.files?.length) await supabase.storage.from("repair-files").remove(e.files.map((f) => f.path));
     setEntries((es) => es.filter((x) => x.id !== e.id));
   }
 
@@ -204,15 +226,46 @@ function MachineLog() {
                     </span>
                   </div>
                   <p className="font-semibold">
-                    {jobName(job?.service_names, lang)}
+                    {entryName(e.kind, job?.service_names, lang)}
                     <span className="ml-2 text-xs font-normal uppercase tracking-wider text-faded">
-                      {job ? t(job.category === "repair" ? "repair" : "service") : ""}
+                      {t(e.kind === "repair" ? "repair" : "service")}
                     </span>
                   </p>
                   <p className="text-xs text-faded">
                     {t("logged_by")}: {personName(e.person_id)}
+                    {e.done_by === "outside" && e.vendor ? ` · ${t("done_by_shop", { shop: e.vendor })}` : ""}
                   </p>
                   {e.notes && <p className="mt-1 whitespace-pre-line text-sm">{e.notes}</p>}
+                  {(e.checklist || []).length > 0 && (
+                    <p className="mt-1 text-sm">
+                      <span className="text-faded">{t("checklist")}: </span>
+                      {e.checklist.map((c, i) => (
+                        <span key={i}>
+                          {i > 0 && " · "}
+                          <span className={c.done ? "" : "text-faded line-through"}>
+                            {c.done ? "✓ " : ""}
+                            {c.text}
+                          </span>
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                  {(e.files || []).length > 0 && (
+                    <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      {e.files.map((f) => (
+                        <a
+                          key={f.path}
+                          href={fileUrls[f.path] || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-safety underline-offset-2 hover:underline"
+                        >
+                          <FileText size={14} aria-hidden="true" />
+                          {f.name}
+                        </a>
+                      ))}
+                    </p>
+                  )}
                   {used.length > 0 && (
                     <p className="mt-1 text-sm">
                       <span className="text-faded">{t("parts_used")}: </span>
@@ -220,7 +273,7 @@ function MachineLog() {
                         <span key={p.id}>
                           {i > 0 && " · "}
                           <span className="font-mono">{p.part_number}</span>
-                          {p.description ? ` ${p.description}` : ""} ×{p.quantity}
+                          {p.description ? ` ${p.description}` : ""} ×{qtyText(p.quantity, p.part_id ? units[p.part_id] : null)}
                         </span>
                       ))}
                     </p>
@@ -234,7 +287,10 @@ function MachineLog() {
                     </p>
                   )}
                   <div className="no-print mt-2 flex gap-4 text-sm">
-                    <Link href={`/equipment/${machine.id}/log-work?entry=${e.id}`} className={btnQuiet}>
+                    <Link
+                      href={`/equipment/${machine.id}/${e.kind === "repair" ? "repair" : "log-work"}?entry=${e.id}`}
+                      className={btnQuiet}
+                    >
                       {t("edit")}
                     </Link>
                     <button onClick={() => deleteEntry(e)} className={`${btnQuiet} hover:text-safety`}>

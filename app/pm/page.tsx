@@ -15,6 +15,7 @@ import { formatReading, jobName } from "@/lib/i18n";
 import { latestByService, serviceStatus, ServiceStatus } from "@/lib/maintenance";
 import { AppPage, Loading, btnQuiet, cardCls } from "@/components/ui";
 import { StatusBadge, useIntervalText, useStatusText } from "@/components/StatusBadge";
+import { TriangleAlert } from "lucide-react";
 
 type Job = MachineService & { service_names: ServiceName | null };
 type Row = { job: Job; machine: Equipment; status: ServiceStatus };
@@ -135,9 +136,9 @@ function PmBoard() {
       {openIssues > 0 && (
         <Link
           href="/issues"
-          className="mb-4 block rounded-lg border border-danger/30 bg-dangerSoft p-3 font-semibold text-danger"
+          className="mb-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-dangerSoft p-3 font-semibold text-danger"
         >
-          ⚠ {t("open_issues_n", { n: openIssues })} →
+          <TriangleAlert size={18} aria-hidden="true" /> {t("open_issues_n", { n: openIssues })} →
         </Link>
       )}
 

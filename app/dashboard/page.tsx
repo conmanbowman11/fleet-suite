@@ -19,7 +19,7 @@ import {
   todayISO,
 } from "@/lib/supabase";
 import { useSession } from "@/lib/session";
-import { formatDate, jobName } from "@/lib/i18n";
+import { entryName, formatDate, jobName } from "@/lib/i18n";
 import { latestByService, serviceStatus, ServiceStatus } from "@/lib/maintenance";
 import { AppPage, Loading, btnPrimary, cardCls } from "@/components/ui";
 import { StatusBadge, useStatusText } from "@/components/StatusBadge";
@@ -228,7 +228,7 @@ function Dashboard() {
                     className="flex items-baseline justify-between gap-3 py-2.5 text-sm hover:bg-field"
                   >
                     <span className="min-w-0">
-                      <span className="font-medium">{jobName(job?.service_names, lang)}</span>
+                      <span className="font-medium">{entryName(e.kind, job?.service_names, lang)}</span>
                       <span className="block truncate text-xs text-faded">
                         <Unit m={m} />
                         {m?.nickname || "—"} · {personName(e.person_id)}

@@ -6,12 +6,14 @@
 //   - The same part from several machines is combined into one line
 //   - Save, then Print or Copy for email
 //   - Order history: open, edit, or delete past orders
+//   - /orders?low=1 (from Inventory) starts with every LOW and OUT part
 
 import { useEffect, useState } from "react";
 import {
   supabase,
   CatalogPart,
   Equipment,
+  InventoryItem,
   KitPart,
   MachineService,
   Order,
@@ -20,6 +22,7 @@ import {
 } from "@/lib/supabase";
 import { useSession } from "@/lib/session";
 import { formatDate, jobName } from "@/lib/i18n";
+import { reorderQty, stockStatus } from "@/lib/parts";
 import {
   AppPage,
   ErrorText,
@@ -90,8 +93,32 @@ function Orders() {
       setKits(allKits);
       setCatalog((cat.data as CatalogPart[]) || []);
       setHistory((ord.data as FullOrder[]) || []);
+
+      // Started from Inventory: add everything that's low or out
+      let wantLow = false;
+      try {
+        wantLow = new URLSearchParams(window.location.search).get("low") === "1";
+      } catch {
+        /* ignore */
+      }
+      if (wantLow) {
+        const { data: inv } = await supabase.from("inventory").select("*, parts_catalog(*)");
+        const lowRows = ((inv || []) as (InventoryItem & { parts_catalog: CatalogPart | null })[]).filter(
+          (r) => r.parts_catalog && stockStatus(r) !== "ok"
+        );
+        for (const r of lowRows) {
+          addLine({
+            part_id: r.part_id,
+            part_number: r.parts_catalog!.part_number,
+            description: r.parts_catalog!.description,
+            quantity: reorderQty(r),
+          });
+        }
+        if (lowRows.length) setAdded(t("low_stock_added"));
+      }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------- Building the list ----------
@@ -371,8 +398,9 @@ function Orders() {
                 </span>
                 <input
                   type="number"
-                  min={1}
-                  inputMode="numeric"
+                  min={0}
+                  step="any"
+                  inputMode="decimal"
                   aria-label={t("qty")}
                   value={l.quantity}
                   onChange={(e) => setQty(i, Number(e.target.value))}

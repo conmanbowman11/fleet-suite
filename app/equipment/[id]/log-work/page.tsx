@@ -1,15 +1,19 @@
 "use client";
 
-// LOG WORK - the 30-second form.
-//   1. What was done? (this machine's services and repairs)
-//   2. Date (today), meter reading, notes
-//   3. Parts used: filled in from the kit; uncheck, change qty, or add more
-//   4. Save. Odd meter readings get a soft warning first.
+// LOG A SERVICE - about 30 seconds.
+//   1. Which service? (this machine's PM templates)
+//   2. Date (today) and meter reading
+//   3. Parts and fluids: filled in from the template. Uncheck anything
+//      not used, change a quantity, or add another part. Shows how many
+//      are on the shelf for parts tracked in Inventory.
+//   4. Checklist: the template's tasks
+//   5. Notes, then Save. Odd meter readings get a soft warning first.
+// On save, checked parts come out of Inventory (the database does it).
 //
 // The same form also:
 //   ?entry=ID  edits an existing entry (keeps an "Edited by" note)
-//   ?issue=ID  fixes an open issue: the issue is closed and linked to this entry
-//   ?job=ID    starts with that service or repair already picked
+//   ?job=ID    starts with that template already picked
+//   ?issue=ID  closes an open issue with this entry (older links)
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -17,7 +21,9 @@ import { useParams, useRouter } from "next/navigation";
 import {
   supabase,
   CatalogPart,
+  ChecklistItem,
   Equipment,
+  InventoryItem,
   Issue,
   KitPart,
   LogEntry,
@@ -29,6 +35,7 @@ import {
 import { useSession } from "@/lib/session";
 import { formatDate, formatReading, jobName } from "@/lib/i18n";
 import { checkReading, MeterWarning, Reading } from "@/lib/meter";
+import { STOCK_STYLE, qtyText, stockStatus } from "@/lib/parts";
 import {
   AppPage,
   ErrorText,
@@ -51,7 +58,8 @@ type PartRow = {
   part_id: string | null;
   part_number: string;
   description: string | null;
-  quantity: number;
+  unit: string;
+  quantity: string;
   checked: boolean;
   fromKit: boolean;
 };
@@ -64,15 +72,15 @@ function readParam(name: string): string | null {
   }
 }
 
-export default function LogWorkPage() {
+export default function LogServicePage() {
   return (
     <AppPage nav={false}>
-      <LogWorkForm />
+      <LogServiceForm />
     </AppPage>
   );
 }
 
-function LogWorkForm() {
+function LogServiceForm() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { farm, person, t, lang } = useSession();
@@ -81,6 +89,7 @@ function LogWorkForm() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [kits, setKits] = useState<Kit[]>([]);
   const [catalog, setCatalog] = useState<CatalogPart[]>([]);
+  const [stock, setStock] = useState<Record<string, InventoryItem>>({});
   const [history, setHistory] = useState<Reading[]>([]);
   const [entry, setEntry] = useState<LogEntry | null>(null);
   const [issue, setIssue] = useState<Issue | null>(null);
@@ -91,6 +100,7 @@ function LogWorkForm() {
   const [reading, setReading] = useState("");
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<PartRow[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [showPicker, setShowPicker] = useState(false);
 
   const [warnings, setWarnings] = useState<MeterWarning[]>([]);
@@ -104,7 +114,7 @@ function LogWorkForm() {
       const issueId = readParam("issue");
       const startJob = readParam("job");
 
-      const [eq, js, cat, lg] = await Promise.all([
+      const [eq, js, cat, lg, inv] = await Promise.all([
         supabase.from("equipment").select("*").eq("id", id).maybeSingle(),
         supabase.from("machine_services").select("*, service_names(*)").eq("equipment_id", id),
         supabase.from("parts_catalog").select("*").order("part_key"),
@@ -113,6 +123,7 @@ function LogWorkForm() {
           .select("id, service_date, meter_reading")
           .eq("equipment_id", id)
           .not("meter_reading", "is", null),
+        supabase.from("inventory").select("*"),
       ]);
       const m = eq.data as Equipment | null;
       const allJobs = (js.data as Job[]) || [];
@@ -124,6 +135,7 @@ function LogWorkForm() {
           .in("machine_service_id", allJobs.map((j) => j.id));
         myKits = (data as Kit[]) || [];
       }
+      const cat2 = (cat.data as CatalogPart[]) || [];
 
       // Meter history for the odd-reading checks (not counting the entry being edited)
       const hist: Reading[] = (lg.data || [])
@@ -136,7 +148,8 @@ function LogWorkForm() {
       setMachine(m);
       setJobs(allJobs);
       setKits(myKits);
-      setCatalog((cat.data as CatalogPart[]) || []);
+      setCatalog(cat2);
+      setStock(Object.fromEntries(((inv.data as InventoryItem[]) || []).map((i) => [i.part_id, i])));
       setHistory(hist);
 
       if (entryId) {
@@ -151,20 +164,22 @@ function LogWorkForm() {
           setDate(le.service_date);
           setReading(le.meter_reading !== null ? String(le.meter_reading) : "");
           setNotes(le.notes || "");
+          setChecklist(le.checklist || []);
           setRows(
             ((used as PartUsed[]) || []).map((p) => ({
               key: p.id,
               part_id: p.part_id,
               part_number: p.part_number,
               description: p.description,
-              quantity: p.quantity,
+              unit: cat2.find((c) => c.id === p.part_id)?.unit || "each",
+              quantity: String(p.quantity),
               checked: true,
               fromKit: false,
             }))
           );
         }
       } else if (startJob && allJobs.some((j) => j.id === startJob && !j.is_retired)) {
-        pickJob(startJob, myKits, []);
+        pickJob(startJob, allJobs, myKits, []);
       }
 
       if (issueId) {
@@ -179,11 +194,14 @@ function LogWorkForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Picking a job fills in its kit (keeps any extra parts already added)
-  function pickJob(msid: string, kitList = kits, current = rows) {
+  // Picking a template fills in its parts, fluids, and checklist
+  // (keeps any extra parts already added)
+  function pickJob(msid: string, jobList = jobs, kitList = kits, current = rows) {
     setJobId(msid);
     setWarnings([]);
-    if (entry) return; // editing: keep the parts as recorded
+    if (entry) return; // editing: keep what was recorded
+    const job = jobList.find((j) => j.id === msid);
+    setChecklist((job?.tasks || []).map((text) => ({ text, done: false })));
     const extras = current.filter((r) => !r.fromKit);
     const kitRows: PartRow[] = kitList
       .filter((k) => k.machine_service_id === msid && k.parts_catalog)
@@ -192,7 +210,8 @@ function LogWorkForm() {
         part_id: k.part_id,
         part_number: k.parts_catalog!.part_number,
         description: k.parts_catalog!.description,
-        quantity: k.quantity,
+        unit: k.parts_catalog!.unit || "each",
+        quantity: String(k.quantity),
         checked: true,
         fromKit: true,
       }));
@@ -210,7 +229,8 @@ function LogWorkForm() {
           part_id: p.id,
           part_number: p.part_number,
           description: p.description,
-          quantity: 1,
+          unit: p.unit || "each",
+          quantity: "1",
           checked: true,
           fromKit: false,
         },
@@ -251,11 +271,14 @@ function LogWorkForm() {
     setWarnings([]);
     setBusy(true);
 
+    const job = jobs.find((j) => j.id === jobId);
     const values = {
       machine_service_id: jobId,
+      kind: job?.category === "repair" ? ("repair" as const) : ("service" as const),
       service_date: date,
       meter_reading: meterValue,
       notes: notes.trim() || null,
+      checklist,
     };
 
     let entryId = entry?.id;
@@ -265,6 +288,7 @@ function LogWorkForm() {
         .update({ ...values, edited_at: new Date().toISOString(), edited_by: person.id })
         .eq("id", entry.id);
       if (error) return fail(error.message);
+      // Old parts go back on the shelf, the new list comes off
       await supabase.from("parts_used").delete().eq("log_entry_id", entry.id);
     } else {
       const { data, error } = await supabase
@@ -277,7 +301,7 @@ function LogWorkForm() {
     }
 
     // Frozen receipt of the parts used
-    const used = rows.filter((r) => r.checked && r.quantity > 0);
+    const used = rows.filter((r) => r.checked && Number(r.quantity) > 0);
     if (used.length) {
       const { error } = await supabase.from("parts_used").insert(
         used.map((r) => ({
@@ -286,7 +310,7 @@ function LogWorkForm() {
           part_id: r.part_id,
           part_number: r.part_number,
           description: r.description,
-          quantity: r.quantity,
+          quantity: Number(r.quantity),
         }))
       );
       if (error) return fail(error.message);
@@ -317,29 +341,11 @@ function LogWorkForm() {
   if (loading) return <Loading />;
   if (!machine) return <p className="py-10 text-center text-faded">{t("no_matches")}</p>;
 
-  const visibleJobs = jobs
-    .filter((j) => !j.is_retired || j.id === jobId)
+  const templates = jobs
+    .filter((j) => (j.category === "service" && !j.is_retired) || j.id === jobId)
     .sort((a, b) => jobName(a.service_names, lang).localeCompare(jobName(b.service_names, lang)));
-  const services = visibleJobs.filter((j) => j.category === "service");
-  const repairs = visibleJobs.filter((j) => j.category === "repair");
   const lastReading = history.slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-
-  function JobButton({ j }: { j: Job }) {
-    const selected = j.id === jobId;
-    return (
-      <button
-        type="button"
-        onClick={() => pickJob(j.id)}
-        aria-pressed={selected}
-        className={
-          "rounded border p-3 text-left font-semibold " +
-          (selected ? "border-steel bg-steel text-white" : "border-seam bg-plate hover:border-steel")
-        }
-      >
-        {jobName(j.service_names, lang)}
-      </button>
-    );
-  }
+  const partCount = (msid: string) => kits.filter((k) => k.machine_service_id === msid).length;
 
   return (
     <form onSubmit={(e) => submit(e)} className="space-y-5">
@@ -355,7 +361,7 @@ function LogWorkForm() {
           {machine.unit_number && <span className="mr-2 font-mono text-faded">#{machine.unit_number}</span>}
           {machine.nickname}
         </h1>
-        <p className="text-sm text-faded">{entry ? t("edit_entry") : t("log_work")}</p>
+        <p className="text-sm text-faded">{entry ? t("edit_entry") : t("log_service")}</p>
       </div>
 
       {issue && (
@@ -364,43 +370,43 @@ function LogWorkForm() {
         </p>
       )}
 
-      {/* 1. What was done */}
+      {/* 1. Which service */}
       <section>
-        <p className={labelCls}>{t("pick_job")}</p>
-        {visibleJobs.length === 0 ? (
+        <p className={labelCls}>{t("which_service")}</p>
+        {templates.length === 0 ? (
           <div className={`${cardCls} text-sm text-faded`}>
-            <p className="mb-2">{t("no_jobs_set_up")}</p>
-            <Link href={`/equipment/${machine.id}/services`} className={`${btnOutline} inline-block`}>
-              {t("set_up_jobs")}
+            <p className="mb-2">{t("no_templates")}</p>
+            <Link href={`/equipment/${machine.id}/services?add=1`} className={`${btnOutline} inline-block`}>
+              {t("add_template")}
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
-            {services.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs text-faded">{t("services")}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {services.map((j) => (
-                    <JobButton key={j.id} j={j} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {repairs.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs text-faded">{t("repairs")}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {repairs.map((j) => (
-                    <JobButton key={j.id} j={j} />
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {templates.map((j) => {
+              const selected = j.id === jobId;
+              return (
+                <button
+                  type="button"
+                  key={j.id}
+                  onClick={() => pickJob(j.id)}
+                  aria-pressed={selected}
+                  className={
+                    "rounded-md border-2 p-3 text-left " +
+                    (selected ? "border-safety bg-tint" : "border-seam bg-plate hover:border-safety")
+                  }
+                >
+                  <span className="block font-semibold">{jobName(j.service_names, lang)}</span>
+                  <span className="block text-xs text-faded">
+                    {t("n_items", { n: partCount(j.id) })} · {t("tasks")}: {(j.tasks || []).length}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
 
-      {/* 2. Date, meter, notes */}
+      {/* 2. Date and meter */}
       <section className="grid grid-cols-2 gap-3">
         <Field label={t("date")}>
           <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
@@ -420,7 +426,7 @@ function LogWorkForm() {
             <input
               type="number"
               inputMode="decimal"
-              className={inputCls}
+              className={`${inputCls} font-mono`}
               value={reading}
               onChange={(e) => {
                 setReading(e.target.value);
@@ -432,45 +438,48 @@ function LogWorkForm() {
         )}
       </section>
 
-      <Field label={t("notes")}>
-        <textarea
-          className={inputCls}
-          rows={3}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder={t("what_did_you_do")}
-        />
-      </Field>
-
-      {/* 3. Parts used */}
+      {/* 3. Parts and fluids */}
       <section>
-        <p className={labelCls}>{t("parts_used")}</p>
+        <p className={labelCls}>{t("uncheck_unused")}</p>
         {rows.length > 0 && (
-          <ul className="mb-2 divide-y divide-seam rounded border border-seam bg-plate">
-            {rows.map((r) => (
-              <li key={r.key} className="flex items-center gap-3 p-3">
-                <input
-                  type="checkbox"
-                  className="h-5 w-5 accent-[#1E5BA8]"
-                  checked={r.checked}
-                  onChange={(e) => updateRow(r.key, { checked: e.target.checked })}
-                  aria-label={r.part_number}
-                />
-                <span className={"min-w-0 flex-1 " + (r.checked ? "" : "text-faded line-through")}>
-                  <span className="font-mono font-semibold">{r.part_number}</span>
-                  {r.description && <span className="block text-sm text-faded">{r.description}</span>}
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  aria-label={t("qty")}
-                  value={r.quantity}
-                  onChange={(e) => updateRow(r.key, { quantity: Number(e.target.value) })}
-                  className="w-16 rounded border border-seam p-2 text-right"
-                />
-              </li>
-            ))}
+          <ul className="mb-2 divide-y divide-seam rounded-md border border-seam bg-plate">
+            {rows.map((r) => {
+              const inv = r.part_id ? stock[r.part_id] : undefined;
+              const st = inv ? stockStatus(inv) : null;
+              return (
+                <li key={r.key} className="flex items-center gap-3 p-3">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 shrink-0 accent-[#1E5BA8]"
+                    checked={r.checked}
+                    onChange={(e) => updateRow(r.key, { checked: e.target.checked })}
+                    aria-label={r.part_number}
+                  />
+                  <span className={"min-w-0 flex-1 " + (r.checked ? "" : "text-faded line-through")}>
+                    <span className="font-mono font-semibold">{r.part_number}</span>
+                    {r.description && <span className="block truncate text-sm text-faded">{r.description}</span>}
+                    {inv && st && (
+                      <span
+                        className={`mt-1 inline-block rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold no-underline ${STOCK_STYLE[st]}`}
+                      >
+                        {t("on_hand_n", { n: qtyText(inv.on_hand, r.unit) })}
+                      </span>
+                    )}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    aria-label={`${r.part_number} ${t("qty")}`}
+                    value={r.quantity}
+                    onChange={(e) => updateRow(r.key, { quantity: e.target.value })}
+                    className="w-20 rounded border border-seam p-2 text-right font-mono"
+                  />
+                  {r.unit !== "each" && <span className="-ml-1 w-7 text-xs text-faded">{r.unit}</span>}
+                </li>
+              );
+            })}
           </ul>
         )}
         {showPicker ? (
@@ -479,6 +488,7 @@ function LogWorkForm() {
               catalog={catalog}
               onCatalogChange={(p) => setCatalog((c) => [...c.filter((x) => x.id !== p.id), p])}
               onPick={addExtraPart}
+              autoFocus
             />
             <button type="button" onClick={() => setShowPicker(false)} className={`${btnQuiet} mt-2`}>
               {t("cancel")}
@@ -489,9 +499,46 @@ function LogWorkForm() {
             + {t("add_extra_part")}
           </button>
         )}
+        {Object.keys(stock).length > 0 && rows.length > 0 && (
+          <p className="mt-2 text-xs text-faded">{t("stock_note")}</p>
+        )}
       </section>
 
-      {/* 4. Save */}
+      {/* 4. Checklist */}
+      {checklist.length > 0 && (
+        <section>
+          <p className={labelCls}>{t("checklist")}</p>
+          <ul className="divide-y divide-seam rounded-md border border-seam bg-plate">
+            {checklist.map((c, i) => (
+              <li key={i}>
+                <label className="flex items-center gap-3 p-3">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 shrink-0 accent-[#1E5BA8]"
+                    checked={c.done}
+                    onChange={(e) =>
+                      setChecklist((cl) => cl.map((x, idx) => (idx === i ? { ...x, done: e.target.checked } : x)))
+                    }
+                  />
+                  <span className={c.done ? "text-faded line-through" : ""}>{c.text}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* 5. Notes and save */}
+      <Field label={t("notes")}>
+        <textarea
+          className={inputCls}
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={t("what_did_you_do")}
+        />
+      </Field>
+
       <ErrorText>{message}</ErrorText>
       {warnings.length > 0 ? (
         <WarningBox
@@ -502,7 +549,7 @@ function LogWorkForm() {
         />
       ) : (
         <button type="submit" disabled={busy} className={`${btnPrimary} w-full py-4 text-lg`}>
-          {busy ? t("saving") : t("save")}
+          {busy ? t("saving") : t("save_service")}
         </button>
       )}
     </form>

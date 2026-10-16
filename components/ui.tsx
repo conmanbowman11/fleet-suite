@@ -3,12 +3,14 @@
 // SHARED BUILDING BLOCKS used by every screen:
 //   - AppPage: the page frame (checks login, shows the sidebar)
 //   - Loading, ErrorText, Field: small pieces that repeat everywhere
+//   - Modal: a pop-up panel for forms
 //   - Style presets for inputs, buttons, and cards, so screens match
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, useRequireFarm } from "@/lib/session";
 import Nav from "@/components/Nav";
+import { X } from "lucide-react";
 import type { Person } from "@/lib/supabase";
 
 // ---------- Style presets ----------
@@ -63,6 +65,44 @@ export function Field({
       {children}
       {hint && <span className="mt-1 block text-xs text-faded">{hint}</span>}
     </label>
+  );
+}
+
+// A pop-up panel over the page (Add part, Add PM template...)
+export function Modal({
+  title,
+  onClose,
+  wide = false,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0E2A47]/50 p-3 md:p-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-lg bg-plate shadow-xl`}
+      >
+        <div className="flex items-center justify-between border-b border-seam px-4 py-3">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-faded hover:text-ink">
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
   );
 }
 

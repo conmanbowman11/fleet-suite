@@ -5,6 +5,7 @@
 
 import { useSession } from "@/lib/session";
 import type { MeterWarning } from "@/lib/meter";
+import { TriangleAlert } from "lucide-react";
 
 export default function WarningBox({
   warnings,
@@ -22,8 +23,10 @@ export default function WarningBox({
   const { t } = useSession();
   if (!warnings.length) return null;
   return (
-    <div role="alert" className="rounded-lg border-2 border-amber-400 bg-amber-50 p-4">
-      <p className="mb-2 font-bold">⚠ {label || t("warn_title")}</p>
+    <div role="alert" className="rounded-lg border-2 border-caution bg-cautionSoft p-4">
+      <p className="mb-2 flex items-center gap-2 font-bold text-cautionInk">
+        <TriangleAlert size={18} aria-hidden="true" /> {label || t("warn_title")}
+      </p>
       <ul className="mb-3 space-y-1 text-sm">
         {warnings.map((w, i) => (
           <li key={i}>

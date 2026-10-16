@@ -42,7 +42,19 @@ export type CatalogPart = {
   part_number: string;
   part_key: string;
   description: string | null;
+  manufacturer: string | null;
+  category: string | null;
+  unit: string; // "each", "gal", "qt"...
   is_hidden: boolean;
+};
+
+export type InventoryItem = {
+  id: string;
+  farm_id: string;
+  part_id: string;
+  on_hand: number;
+  reorder_at: number | null;
+  created_at: string;
 };
 
 export type MeterType = "hours" | "miles" | "none";
@@ -69,6 +81,8 @@ export type MachineService = {
   category: "service" | "repair";
   interval_meter: number | null;
   interval_months: number | null;
+  tasks: string[]; // checklist shown on every service
+  notes: string | null;
   is_retired: boolean;
 };
 
@@ -89,10 +103,18 @@ export type LogEntry = {
   meter_reading: number | null;
   notes: string | null;
   batch_id: string | null;
+  kind: "service" | "repair";
+  done_by: "crew" | "outside" | null; // repairs: who did the work
+  vendor: string | null; // repairs: the outside shop
+  checklist: ChecklistItem[];
+  files: FileRef[]; // repairs: invoices and photos
   edited_at: string | null;
   edited_by: string | null;
   created_at: string;
 };
+
+export type ChecklistItem = { text: string; done: boolean };
+export type FileRef = { path: string; name: string; type: string };
 
 export type PartUsed = {
   id: string;
@@ -101,6 +123,7 @@ export type PartUsed = {
   part_number: string;
   description: string | null;
   quantity: number;
+  from_stock: boolean; // came out of inventory (goes back if deleted)
 };
 
 export type Issue = {

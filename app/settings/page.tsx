@@ -13,7 +13,7 @@ import { AppPage, ErrorText, Field, btnSecondary, cardCls, inputCls } from "@/co
 const LINKS: { href: string; key: Key; hint?: Key }[] = [
   { href: "/settings/people", key: "people" },
   { href: "/settings/names", key: "service_names", hint: "service_names_hint" },
-  { href: "/settings/parts", key: "parts_catalog", hint: "parts_catalog_hint" },
+  { href: "/parts", key: "parts_catalog", hint: "parts_catalog_hint" },
   { href: "/settings/qr", key: "qr_labels", hint: "qr_hint" },
   { href: "/device", key: "this_device" },
 ];

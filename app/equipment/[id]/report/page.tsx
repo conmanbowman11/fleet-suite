@@ -91,7 +91,7 @@ function ReportForm() {
           {machine.unit_number && <span className="mr-2 font-mono text-faded">#{machine.unit_number}</span>}
           {machine.nickname}
         </h1>
-        <p className="text-sm text-faded">{t("report_problem")}</p>
+        <p className="text-sm text-faded">{t("report_issue")}</p>
       </div>
 
       <Field label={t("whats_wrong")}>

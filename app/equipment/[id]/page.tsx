@@ -1,25 +1,37 @@
 "use client";
 
-// ONE MACHINE - the mechanic's starting point at the machine.
-//   - Big buttons: Log work, Report a problem
-//   - Open issues on this machine
-//   - Its services and repairs, with status
-//   - Recent work, and a link to the full log
-//   - Edit details, retire, or permanently delete
+// ONE MACHINE - the most-used screen. Pick a machine, then 3 choices:
+//   Log a service   pick a PM template; its parts, fluids, and checklist fill in
+//   Log a repair    write what happened, attach an invoice or photos
+//   Report an issue flag a problem for later
+// Below: open issues, the machine's PM templates (with what's due),
+// recent work, and edit / retire / delete.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { supabase, Equipment, Issue, LogEntry, MachineService, ServiceName, todayISO } from "@/lib/supabase";
+import {
+  supabase,
+  CatalogPart,
+  Equipment,
+  Issue,
+  KitPart,
+  LogEntry,
+  MachineService,
+  ServiceName,
+  todayISO,
+} from "@/lib/supabase";
 import { useSession } from "@/lib/session";
-import { formatDate, formatReading, jobName } from "@/lib/i18n";
+import { entryName, formatDate, formatReading, jobName } from "@/lib/i18n";
 import { latestByService, serviceStatus } from "@/lib/maintenance";
-import { AppPage, ErrorText, Loading, btnOutline, btnPrimary, btnQuiet, btnSecondary, cardCls } from "@/components/ui";
+import { isFluid } from "@/lib/parts";
+import { AppPage, ErrorText, Loading, btnOutline, btnQuiet, btnSecondary, cardCls } from "@/components/ui";
 import { StatusBadge, useIntervalText, useStatusText } from "@/components/StatusBadge";
 import MachineForm from "@/components/MachineForm";
-import { TriangleAlert, Wrench } from "lucide-react";
+import { Hammer, Plus, TriangleAlert, Wrench } from "lucide-react";
 
 type Job = MachineService & { service_names: ServiceName | null };
+type Kit = KitPart & { parts_catalog: Pick<CatalogPart, "unit"> | null };
 
 export default function MachinePage() {
   return (
@@ -38,6 +50,7 @@ function MachineDetail() {
 
   const [machine, setMachine] = useState<Equipment | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [kits, setKits] = useState<Kit[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [peerCount, setPeerCount] = useState(0);
@@ -68,17 +81,24 @@ function MachineDetail() {
       );
       const m = eq.data as Equipment | null;
       const myJobs = (js.data as Job[]) || [];
+      let myKits: Kit[] = [];
+      if (myJobs.length) {
+        const { data } = await supabase
+          .from("kit_parts")
+          .select("*, parts_catalog(unit)")
+          .in("machine_service_id", myJobs.map((j) => j.id));
+        myKits = (data as Kit[]) || [];
+      }
       setMachine(m);
       setJobs(myJobs);
+      setKits(myKits);
       setLogs(sorted);
       setIssues((iss.data as Issue[]) || []);
 
-      // Same make and model already set up? Offer to copy their services.
-      if (m && m.make && m.model && myJobs.length === 0) {
-        const { data: others } = await supabase
-          .from("equipment")
-          .select("id, make, model")
-          .neq("id", m.id);
+      // Same make and model already set up? Offer to copy their templates.
+      const myTemplates = myJobs.filter((j) => j.category === "service");
+      if (m && m.make && m.model && myTemplates.length === 0) {
+        const { data: others } = await supabase.from("equipment").select("id, make, model").neq("id", m.id);
         const peers = (others || []).filter(
           (o) =>
             (o.make || "").toLowerCase() === m.make!.toLowerCase() &&
@@ -89,6 +109,7 @@ function MachineDetail() {
             .from("machine_services")
             .select("equipment_id")
             .in("equipment_id", peers.map((p) => p.id))
+            .eq("category", "service")
             .eq("is_retired", false);
           setPeerCount(new Set((peerJobs || []).map((j) => j.equipment_id)).size);
         }
@@ -127,12 +148,13 @@ function MachineDetail() {
 
   const latest = latestByService(logs);
   const today = todayISO();
-  const activeJobs = jobs.filter((j) => !j.is_retired);
-  const services = activeJobs.filter((j) => j.category === "service");
-  const repairs = activeJobs.filter((j) => j.category === "repair");
+  const templates = jobs
+    .filter((j) => !j.is_retired && j.category === "service")
+    .sort((a, b) => jobName(a.service_names, lang).localeCompare(jobName(b.service_names, lang)));
   const lastWithReading = logs.find((l) => l.meter_reading !== null);
   const personName = (pid: string | null) => people.find((p) => p.id === pid)?.name || "—";
   const jobFor = (msid: string) => jobs.find((j) => j.id === msid);
+  const base = `/equipment/${machine.id}`;
 
   return (
     <>
@@ -200,35 +222,26 @@ function MachineDetail() {
 
       <ErrorText>{message}</ErrorText>
 
-      {/* ---------- Big buttons ---------- */}
+      {/* ---------- The 3 choices ---------- */}
       {machine.is_active && (
-        <div className="mb-5 grid grid-cols-2 gap-3">
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Link
-            href={`/equipment/${machine.id}/log-work`}
-            className={`${btnPrimary} flex items-center justify-center gap-2 py-4 text-lg`}
+            href={`${base}/log-work`}
+            className="flex items-center justify-center gap-2 rounded-lg bg-safety px-4 py-5 text-lg font-semibold text-white hover:bg-safetyDark"
           >
-            <Wrench size={20} aria-hidden="true" /> {t("log_work")}
+            <Wrench size={22} aria-hidden="true" /> {t("log_service")}
           </Link>
           <Link
-            href={`/equipment/${machine.id}/report`}
-            className={`${btnOutline} flex items-center justify-center gap-2 py-4 text-lg`}
+            href={`${base}/repair`}
+            className="flex items-center justify-center gap-2 rounded-lg bg-navy px-4 py-5 text-lg font-semibold text-white hover:bg-navyLight"
           >
-            <TriangleAlert size={20} aria-hidden="true" /> {t("report_problem")}
+            <Hammer size={22} aria-hidden="true" /> {t("log_repair")}
           </Link>
-        </div>
-      )}
-
-      {/* ---------- Copy from same model ---------- */}
-      {peerCount > 0 && activeJobs.length === 0 && (
-        <div className="mb-5 rounded-lg border-2 border-steel bg-plate p-4">
-          <p className="mb-3 font-semibold">
-            {t("same_model_prompt", {
-              n: peerCount,
-              model: [machine.make, machine.model].filter(Boolean).join(" "),
-            })}
-          </p>
-          <Link href={`/equipment/${machine.id}/services?copy=1`} className={`${btnSecondary} inline-block`}>
-            {t("copy_from_machine")}
+          <Link
+            href={`${base}/report`}
+            className="flex items-center justify-center gap-2 rounded-lg border border-danger/30 bg-dangerSoft px-4 py-5 text-lg font-semibold text-danger hover:border-danger"
+          >
+            <TriangleAlert size={22} aria-hidden="true" /> {t("report_issue")}
           </Link>
         </div>
       )}
@@ -242,88 +255,110 @@ function MachineDetail() {
           </h2>
           <ul className="divide-y divide-danger/15">
             {issues.map((i) => (
-              <li key={i.id} className="py-2">
-                <p className="font-semibold">
-                  {i.priority === "urgent" && (
-                    <span className="mr-2 rounded bg-danger px-1.5 py-0.5 text-xs font-semibold text-white">
-                      {t("priority_urgent")}
-                    </span>
-                  )}
-                  {i.title}
-                </p>
-                <p className="text-xs text-faded">
-                  {t("reported_by_on", { name: personName(i.reported_by), date: formatDate(i.reported_at) })}
-                </p>
+              <li key={i.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    {i.priority === "urgent" && (
+                      <span className="mr-2 rounded bg-danger px-1.5 py-0.5 text-xs font-semibold text-white">
+                        {t("priority_urgent")}
+                      </span>
+                    )}
+                    {i.title}
+                  </p>
+                  <p className="text-xs text-faded">
+                    {t("reported_by_on", { name: personName(i.reported_by), date: formatDate(i.reported_at) })}
+                  </p>
+                </div>
+                {machine.is_active && (
+                  <Link
+                    href={`${base}/repair?issue=${i.id}`}
+                    className="shrink-0 rounded-md border border-danger/40 bg-plate px-3 py-1.5 text-sm font-semibold text-danger hover:border-danger"
+                  >
+                    {t("mark_fixed")}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
-          <Link href="/issues" className={`${btnQuiet} mt-2 inline-block`}>
-            {t("issues")} →
-          </Link>
         </section>
       )}
 
-      {/* ---------- Services and repairs ---------- */}
-      <section className={`${cardCls} mb-4`}>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-faded">
-            {t("services_and_repairs")}
-          </h2>
-          <Link href={`/equipment/${machine.id}/services`} className="text-sm font-bold text-safety">
-            {t("edit")}
+      {/* ---------- Copy from same model ---------- */}
+      {peerCount > 0 && templates.length === 0 && (
+        <div className="mb-5 rounded-lg border-2 border-steel bg-plate p-4">
+          <p className="mb-3 font-semibold">
+            {t("same_model_prompt", {
+              n: peerCount,
+              model: [machine.make, machine.model].filter(Boolean).join(" "),
+            })}
+          </p>
+          <Link href={`${base}/services?copy=1`} className={`${btnSecondary} inline-block`}>
+            {t("copy_from_machine")}
           </Link>
         </div>
+      )}
 
-        {activeJobs.length === 0 ? (
-          <div className="py-3 text-sm text-faded">
-            <p className="mb-2">{t("no_jobs_set_up")}</p>
-            <Link href={`/equipment/${machine.id}/services`} className={`${btnOutline} inline-block`}>
-              {t("set_up_jobs")}
+      {/* ---------- PM templates ---------- */}
+      <section className={`${cardCls} mb-4`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-faded">
+            {t("pm_templates")} ({templates.length})
+          </h2>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
+            <Link href={`${base}/services?copy=1`} className="whitespace-nowrap text-faded hover:text-safety">
+              {t("copy_from_machine")}
+            </Link>
+            <Link href={`${base}/services?add=1`} className="flex items-center gap-1 whitespace-nowrap text-safety">
+              <Plus size={15} aria-hidden="true" /> {t("add_template")}
+            </Link>
+          </div>
+        </div>
+
+        {templates.length === 0 ? (
+          <div className="py-2 text-sm text-faded">
+            <p className="mb-3">{t("no_templates")}</p>
+            <Link href={`${base}/services?add=1`} className={`${btnOutline} inline-block`}>
+              {t("add_template")}
             </Link>
           </div>
         ) : (
-          <>
-            {services.length > 0 && (
-              <ul className="divide-y divide-seam">
-                {services.map((j) => {
-                  const st = serviceStatus(j, latest.get(j.id) || null, today);
-                  const tracked = !!(j.interval_meter || j.interval_months);
-                  return (
-                    <li key={j.id} className="flex items-start gap-3 py-2">
-                      <div className="w-20 shrink-0 pt-0.5">{tracked && <StatusBadge status={st.status} />}</div>
-                      <div className="min-w-0">
-                        <p className="font-semibold">{jobName(j.service_names, lang)}</p>
-                        <p className="text-xs text-faded">
-                          {tracked ? `${intervalText(j.interval_meter, j.interval_months, machine.meter_type)} · ` : ""}
-                          {statusText(st, machine.meter_type)}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {repairs.length > 0 && (
-              <>
-                <h3 className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wider text-faded">
-                  {t("repairs")}
-                </h3>
-                <ul className="divide-y divide-seam">
-                  {repairs.map((j) => {
-                    const last = latest.get(j.id);
-                    return (
-                      <li key={j.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                        <span className="font-semibold">{jobName(j.service_names, lang)}</span>
-                        <span className="text-xs text-faded">
-                          {last ? t("last_done", { date: formatDate(last.service_date) }) : t("never_done")}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
-          </>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {templates.map((j) => {
+              const st = serviceStatus(j, latest.get(j.id) || null, today);
+              const tracked = !!(j.interval_meter || j.interval_months);
+              const kit = kits.filter((k) => k.machine_service_id === j.id);
+              const fluids = kit.filter((k) => isFluid(k.parts_catalog)).length;
+              return (
+                <div key={j.id} className="flex flex-col rounded-md border border-seam p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold">{jobName(j.service_names, lang)}</p>
+                    {tracked && <StatusBadge status={st.status} />}
+                  </div>
+                  <p className="text-xs text-faded">
+                    {tracked ? `${intervalText(j.interval_meter, j.interval_months, machine.meter_type)} · ` : ""}
+                    {statusText(st, machine.meter_type)}
+                  </p>
+                  <p className="mt-1 text-xs text-faded">
+                    {t("template_counts", {
+                      parts: kit.length - fluids,
+                      fluids,
+                      tasks: (j.tasks || []).length,
+                    })}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-seam pt-2 text-sm">
+                    <Link href={`${base}/services?edit=${j.id}`} className={btnQuiet}>
+                      {t("edit")}
+                    </Link>
+                    {machine.is_active && (
+                      <Link href={`${base}/log-work?job=${j.id}`} className="font-semibold text-safety">
+                        {t("log_service")} →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
@@ -332,7 +367,7 @@ function MachineDetail() {
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-faded">{t("recent_work")}</h2>
           {logs.length > 0 && (
-            <Link href={`/equipment/${machine.id}/log`} className="text-sm font-bold text-safety">
+            <Link href={`${base}/log`} className="text-sm font-bold text-safety">
               {t("view_full_log")}
             </Link>
           )}
@@ -343,10 +378,18 @@ function MachineDetail() {
           <ul className="divide-y divide-seam">
             {logs.slice(0, 5).map((l) => {
               const j = jobFor(l.machine_service_id);
+              const repair = l.kind === "repair";
               return (
                 <li key={l.id} className="py-2">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-semibold">{jobName(j?.service_names, lang)}</span>
+                    <span className="font-semibold">
+                      {entryName(l.kind, j?.service_names, lang)}
+                      {repair && l.done_by === "outside" && l.vendor && (
+                        <span className="ml-2 text-xs font-normal text-faded">
+                          {t("done_by_shop", { shop: l.vendor })}
+                        </span>
+                      )}
+                    </span>
                     <span className="shrink-0 font-mono text-xs text-faded">
                       {formatReading(l.meter_reading, machine.meter_type, lang)}
                     </span>

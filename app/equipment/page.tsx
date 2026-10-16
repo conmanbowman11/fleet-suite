@@ -13,12 +13,13 @@ import { useSession } from "@/lib/session";
 import { formatReading } from "@/lib/i18n";
 import { latestByService, serviceStatus, worstStatus, Status } from "@/lib/maintenance";
 import { AppPage, ErrorText, Loading, btnPrimary, btnQuiet, inputCls } from "@/components/ui";
-import { StatusBadge } from "@/components/StatusBadge";
+import { TriangleAlert } from "lucide-react";
+import { StatusBadge, STRIPE } from "@/components/StatusBadge";
 import MachineForm from "@/components/MachineForm";
 
 export default function EquipmentPage() {
   return (
-    <AppPage>
+    <AppPage wide>
       <EquipmentList />
     </AppPage>
   );
@@ -94,24 +95,26 @@ function EquipmentList() {
 
   function MachineCard({ m }: { m: Equipment }) {
     const issues = issueCounts[m.id] || 0;
+    const status = m.is_active ? badges[m.id] ?? null : null;
     return (
       <Link
         href={`/equipment/${m.id}`}
         className={
-          "block rounded-lg border border-seam p-4 shadow-sm hover:border-steel " +
-          (m.is_active ? "bg-plate" : "bg-field opacity-70")
+          "block border border-l-4 border-seam p-4 hover:border-r-safety/40 hover:border-y-safety/40 " +
+          STRIPE[status || "none"] +
+          (m.is_active ? " bg-plate" : " bg-field opacity-70")
         }
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="text-lg font-bold">
+          <span className="text-base font-semibold">
             {m.unit_number && <span className="mr-2 font-mono text-faded">#{m.unit_number}</span>}
             {m.nickname}
           </span>
-          <span className="flex shrink-0 items-center gap-2 pt-1">
-            {m.is_active ? <StatusBadge status={badges[m.id] ?? null} /> : (
-              <span className="rounded bg-seam px-2 py-0.5 text-xs font-bold tracking-wider text-faded">
-                {t("retired").toUpperCase()}
-              </span>
+          <span className="flex shrink-0 items-center gap-2">
+            {m.is_active ? (
+              <StatusBadge status={status} />
+            ) : (
+              <span className="rounded bg-[#EDF1F5] px-2 py-0.5 text-xs font-semibold text-faded">{t("retired")}</span>
             )}
           </span>
         </div>
@@ -123,7 +126,9 @@ function EquipmentList() {
           <span className="shrink-0 font-mono">{formatReading(m.current_reading, m.meter_type, lang)}</span>
         </div>
         {issues > 0 && m.is_active && (
-          <p className="mt-2 text-sm font-semibold text-safety">⚠ {t("open_issues_n", { n: issues })}</p>
+          <p className="mt-2 flex items-center gap-1 text-sm font-medium text-danger">
+            <TriangleAlert size={14} aria-hidden="true" /> {t("open_issues_n", { n: issues })}
+          </p>
         )}
       </Link>
     );
@@ -131,6 +136,18 @@ function EquipmentList() {
 
   return (
     <>
+      <div className="mb-5 flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">{t("nav_equipment")}</h1>
+          <p className="text-sm text-faded">{t("machines_n", { n: machines.filter((m) => m.is_active).length })}</p>
+        </div>
+        {machines.some((m) => m.is_active) && !showAdd && (
+          <Link href="/batch" className="text-sm font-medium text-safety">
+            {t("batch_title")} →
+          </Link>
+        )}
+      </div>
+
       <ErrorText>{error}</ErrorText>
 
       <div className="mb-4 flex gap-2">
@@ -146,12 +163,6 @@ function EquipmentList() {
         </button>
       </div>
 
-      {machines.some((m) => m.is_active) && !showAdd && (
-        <Link href="/batch" className={`${btnQuiet} mb-4 inline-block`}>
-          {t("batch_title")} →
-        </Link>
-      )}
-
       {showAdd && (
         <MachineForm
           onSaved={(m) => router.push(`/equipment/${m.id}?new=1`)}
@@ -164,7 +175,7 @@ function EquipmentList() {
           {machines.length === 0 ? t("no_equipment") : t("no_matches")}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           {active.map((m) => (
             <MachineCard key={m.id} m={m} />
           ))}
