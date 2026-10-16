@@ -1,4 +1,10 @@
 import "./globals.css";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-sans/700.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
 import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "@/lib/session";
 
@@ -12,13 +18,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#2E4034",
+  themeColor: "#0E2A47",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">
+      <body className="min-h-screen font-sans antialiased">
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
