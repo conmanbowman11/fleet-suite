@@ -3,13 +3,25 @@
 @tailwind utilities;
 
 body {
-  background-color: #f4f3ef;
-  color: #1d211c;
+  background-color: #f2f5f9;
+  color: #14202e;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+/* Numbers line up in columns (meter readings, quantities, dates) */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible keyboard focus on every control */
+:focus-visible {
+  outline: 2px solid #1e5ba8;
+  outline-offset: 2px;
 }
 
 /* ---------- PRINT RULES ----------
-   When someone hits Print on an equipment page,
-   hide the app chrome and show only the service record. */
+   Printing a log, order, or label sheet hides the sidebar and buttons
+   and shows only the record. */
 @media print {
   .no-print {
     display: none !important;
