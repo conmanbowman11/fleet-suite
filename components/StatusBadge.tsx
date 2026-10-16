@@ -1,7 +1,7 @@
 "use client";
 
 // STATUS BADGES and the one-line status text for a service.
-//   OVERDUE / DUE SOON / OK / NO RECORD
+//   Overdue (red) / Due soon (amber) / OK (blue) / No record (gray)
 //   "Last done 03/12/2026 at 3,948 hrs · Next due at 4,448 hrs"
 
 import { useSession } from "@/lib/session";
@@ -11,10 +11,19 @@ import type { MeterType } from "@/lib/supabase";
 import type { ServiceStatus, Status } from "@/lib/maintenance";
 
 const STYLES: Record<Status, string> = {
-  overdue: "bg-safety text-white",
-  due_soon: "bg-amber-400 text-ink",
-  ok: "bg-steel text-white",
-  no_record: "bg-seam text-faded",
+  overdue: "bg-dangerSoft text-[#8E1B1B]",
+  due_soon: "bg-cautionSoft text-cautionInk",
+  ok: "bg-tint text-[#123E73]",
+  no_record: "bg-[#EDF1F5] text-faded",
+};
+
+// The colored stripe on the left edge of a machine card
+export const STRIPE: Record<Status | "none", string> = {
+  overdue: "border-l-danger",
+  due_soon: "border-l-caution",
+  ok: "border-l-safety",
+  no_record: "border-l-[#9FB3C8]",
+  none: "border-l-[#9FB3C8]",
 };
 
 const LABELS: Record<Status, Key> = {
@@ -28,9 +37,7 @@ export function StatusBadge({ status }: { status: Status | null }) {
   const { t } = useSession();
   if (!status) return null;
   return (
-    <span
-      className={`inline-block shrink-0 rounded px-2 py-0.5 text-xs font-bold tracking-wider ${STYLES[status]}`}
-    >
+    <span className={`inline-block shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${STYLES[status]}`}>
       {t(LABELS[status])}
     </span>
   );
@@ -38,7 +45,7 @@ export function StatusBadge({ status }: { status: Status | null }) {
 
 // "Every 500 hrs / every 12 months"
 export function useIntervalText() {
-  const { t, lang } = useSession();
+  const { t } = useSession();
   return (
     intervalMeter: number | null,
     intervalMonths: number | null,
