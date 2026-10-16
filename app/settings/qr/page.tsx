@@ -71,7 +71,7 @@ function QrLabels() {
           <label className="mb-2 flex items-center gap-3 border-b border-seam pb-2 font-semibold">
             <input
               type="checkbox"
-              className="h-5 w-5 accent-[#D9480F]"
+              className="h-5 w-5 accent-[#1E5BA8]"
               checked={allOn}
               onChange={(e) => setChecked(Object.fromEntries(machines.map((m) => [m.id, e.target.checked])))}
             />
@@ -83,7 +83,7 @@ function QrLabels() {
                 <label className="flex items-center gap-3 py-1">
                   <input
                     type="checkbox"
-                    className="h-5 w-5 accent-[#D9480F]"
+                    className="h-5 w-5 accent-[#1E5BA8]"
                     checked={!!checked[m.id]}
                     onChange={(e) => setChecked({ ...checked, [m.id]: e.target.checked })}
                   />
