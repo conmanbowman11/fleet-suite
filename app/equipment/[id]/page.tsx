@@ -17,6 +17,7 @@ import { latestByService, serviceStatus } from "@/lib/maintenance";
 import { AppPage, ErrorText, Loading, btnOutline, btnPrimary, btnQuiet, btnSecondary, cardCls } from "@/components/ui";
 import { StatusBadge, useIntervalText, useStatusText } from "@/components/StatusBadge";
 import MachineForm from "@/components/MachineForm";
+import { TriangleAlert, Wrench } from "lucide-react";
 
 type Job = MachineService & { service_names: ServiceName | null };
 
@@ -150,42 +151,50 @@ function MachineDetail() {
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <div className={`${cardCls} mb-4`}>
-          <div className="flex items-start justify-between gap-3">
+        <div className="mb-4 overflow-hidden rounded-lg border border-seam bg-plate">
+          {/* The data plate: unit number and meter reading */}
+          <div
+            className={
+              "flex items-baseline justify-between gap-3 px-4 py-3 text-white " +
+              (machine.is_active ? "bg-safety" : "bg-[#5B6B7D]")
+            }
+          >
+            <span className="font-mono text-3xl font-medium">
+              {machine.unit_number ? `#${machine.unit_number}` : "—"}
+            </span>
+            {machine.meter_type !== "none" && (
+              <span className="font-mono text-lg">
+                {formatReading(machine.current_reading, machine.meter_type, lang) || "—"}
+              </span>
+            )}
+          </div>
+          <div className="flex items-start justify-between gap-3 p-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold">
-                {machine.unit_number && (
-                  <span className="mr-2 font-mono text-faded">#{machine.unit_number}</span>
-                )}
+              <h1 className="text-xl font-semibold">
                 {machine.nickname}
+                {!machine.is_active && (
+                  <span className="ml-2 align-middle rounded bg-[#EDF1F5] px-2 py-0.5 text-xs font-semibold text-faded">
+                    {t("retired")}
+                  </span>
+                )}
               </h1>
               <p className="text-sm text-faded">
                 {[machine.make, machine.model].filter(Boolean).join(" ") || "—"}
                 {machine.serial_number ? ` · SN ${machine.serial_number}` : ""}
               </p>
+              {lastWithReading && machine.meter_type !== "none" && (
+                <p className="mt-1 text-xs text-faded">
+                  {t("last_reading", {
+                    reading: formatReading(lastWithReading.meter_reading, machine.meter_type, lang),
+                    date: formatDate(lastWithReading.service_date),
+                  })}
+                </p>
+              )}
             </div>
             <button onClick={() => setEditing(true)} className={`${btnQuiet} shrink-0`}>
               {t("edit")}
             </button>
           </div>
-          {!machine.is_active && (
-            <span className="mt-2 inline-block rounded bg-seam px-2 py-0.5 text-xs font-bold tracking-wider text-faded">
-              {t("retired").toUpperCase()}
-            </span>
-          )}
-          {machine.meter_type !== "none" && (
-            <p className="mt-2 font-mono text-lg">
-              {formatReading(machine.current_reading, machine.meter_type, lang) || "—"}
-            </p>
-          )}
-          {lastWithReading && machine.meter_type !== "none" && (
-            <p className="text-xs text-faded">
-              {t("last_reading", {
-                reading: formatReading(lastWithReading.meter_reading, machine.meter_type, lang),
-                date: formatDate(lastWithReading.service_date),
-              })}
-            </p>
-          )}
         </div>
       )}
 
@@ -194,11 +203,17 @@ function MachineDetail() {
       {/* ---------- Big buttons ---------- */}
       {machine.is_active && (
         <div className="mb-5 grid grid-cols-2 gap-3">
-          <Link href={`/equipment/${machine.id}/log-work`} className={`${btnPrimary} py-5 text-center text-lg`}>
-            {t("log_work")}
+          <Link
+            href={`/equipment/${machine.id}/log-work`}
+            className={`${btnPrimary} flex items-center justify-center gap-2 py-4 text-lg`}
+          >
+            <Wrench size={20} aria-hidden="true" /> {t("log_work")}
           </Link>
-          <Link href={`/equipment/${machine.id}/report`} className={`${btnSecondary} py-5 text-center text-lg`}>
-            {t("report_problem")}
+          <Link
+            href={`/equipment/${machine.id}/report`}
+            className={`${btnOutline} flex items-center justify-center gap-2 py-4 text-lg`}
+          >
+            <TriangleAlert size={20} aria-hidden="true" /> {t("report_problem")}
           </Link>
         </div>
       )}
@@ -220,17 +235,18 @@ function MachineDetail() {
 
       {/* ---------- Open issues ---------- */}
       {issues.length > 0 && (
-        <section className={`${cardCls} mb-4 border-safety`}>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-safety">
+        <section className="mb-4 rounded-lg border border-danger/30 bg-dangerSoft p-4">
+          <h2 className="mb-2 flex items-center gap-2 font-semibold text-danger">
+            <TriangleAlert size={16} aria-hidden="true" />
             {t("open_issues")} ({issues.length})
           </h2>
-          <ul className="divide-y divide-seam">
+          <ul className="divide-y divide-danger/15">
             {issues.map((i) => (
               <li key={i.id} className="py-2">
                 <p className="font-semibold">
                   {i.priority === "urgent" && (
-                    <span className="mr-2 rounded bg-safety px-1.5 py-0.5 text-xs font-bold text-white">
-                      {t("priority_urgent").toUpperCase()}
+                    <span className="mr-2 rounded bg-danger px-1.5 py-0.5 text-xs font-semibold text-white">
+                      {t("priority_urgent")}
                     </span>
                   )}
                   {i.title}
