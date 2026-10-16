@@ -359,7 +359,7 @@ function LogWorkForm() {
       </div>
 
       {issue && (
-        <p className="rounded border-l-4 border-safety bg-orange-50 p-3 text-sm">
+        <p className="border-l-4 border-danger bg-dangerSoft p-3 text-sm">
           {t("fixes_issue", { title: issue.title })}
         </p>
       )}
@@ -451,7 +451,7 @@ function LogWorkForm() {
               <li key={r.key} className="flex items-center gap-3 p-3">
                 <input
                   type="checkbox"
-                  className="h-5 w-5 accent-[#D9480F]"
+                  className="h-5 w-5 accent-[#1E5BA8]"
                   checked={r.checked}
                   onChange={(e) => updateRow(r.key, { checked: e.target.checked })}
                   aria-label={r.part_number}
