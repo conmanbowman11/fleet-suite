@@ -1,7 +1,7 @@
 "use client";
 
 // SHARED BUILDING BLOCKS used by every screen:
-//   - AppPage: the page frame (checks login, shows the tab bar)
+//   - AppPage: the page frame (checks login, shows the sidebar)
 //   - Loading, ErrorText, Field: small pieces that repeat everywhere
 //   - Style presets for inputs, buttons, and cards, so screens match
 
@@ -13,37 +13,36 @@ import type { Person } from "@/lib/supabase";
 
 // ---------- Style presets ----------
 export const inputCls =
-  "w-full rounded border border-seam bg-plate p-3 text-base text-ink focus:border-steel focus:outline-none";
-export const labelCls =
-  "mb-1 block text-xs font-semibold uppercase tracking-wider text-faded";
-export const cardCls = "rounded-lg border border-seam bg-plate p-4 shadow-sm";
+  "w-full rounded-md border border-seam bg-plate px-3 py-2.5 text-base text-ink placeholder:text-[#8A97A6] focus:border-safety focus:outline-none focus:ring-2 focus:ring-safety/20";
+export const labelCls = "mb-1 block text-xs font-medium uppercase tracking-wide text-faded";
+export const cardCls = "rounded-lg border border-seam bg-plate p-4";
 export const btnPrimary =
-  "rounded bg-safety px-4 py-3 text-base font-bold text-white hover:bg-safetyDark disabled:opacity-50";
+  "rounded-md bg-safety px-4 py-3 text-base font-semibold text-white hover:bg-safetyDark disabled:opacity-50";
 export const btnSecondary =
-  "rounded bg-steel px-4 py-3 text-base font-bold text-white hover:bg-steelLight disabled:opacity-50";
+  "rounded-md bg-steel px-4 py-3 text-base font-semibold text-white hover:bg-steelLight disabled:opacity-50";
 export const btnOutline =
-  "rounded border border-seam bg-plate px-4 py-3 text-base font-bold text-ink hover:border-steel disabled:opacity-50";
-export const btnQuiet = "text-sm text-faded underline hover:text-ink";
+  "rounded-md border border-[#9FB3C8] bg-plate px-4 py-3 text-base font-semibold text-ink hover:border-safety hover:text-safety disabled:opacity-50";
+export const btnQuiet = "text-sm text-faded underline decoration-seam underline-offset-2 hover:text-safety";
 
 // Where each role lands after picking their name
 export function startPathFor(person: Person | null): string {
-  return person?.role === "owner" ? "/pm" : "/equipment";
+  return person?.role === "owner" ? "/dashboard" : "/equipment";
 }
 
 // ---------- Small pieces ----------
 export function Loading() {
   const { t } = useSession();
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <p className="text-sm uppercase tracking-widest text-faded">{t("loading")}</p>
-    </main>
+    <div className="flex min-h-[50vh] flex-1 items-center justify-center">
+      <p className="text-sm text-faded">{t("loading")}</p>
+    </div>
   );
 }
 
 export function ErrorText({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
   return (
-    <p role="alert" className="rounded bg-orange-50 p-3 text-sm text-safety">
+    <p role="alert" className="rounded-md border border-danger/30 bg-dangerSoft p-3 text-sm text-danger">
       {children}
     </p>
   );
@@ -70,6 +69,8 @@ export function Field({
 // ---------- Page frame ----------
 // need="farm"   -> signed in with a farm (Settings, device setup)
 // need="person" -> also needs to know who's working (anything that logs work)
+// nav={false}   -> focused screens (log work, report a problem, labels):
+//                  no sidebar, just the form
 export function AppPage({
   need = "person",
   nav = true,
@@ -95,10 +96,16 @@ export function AppPage({
 
   if (!farmOk || (needsPerson && !person)) return <Loading />;
 
+  if (!nav) {
+    return <main className="mx-auto max-w-2xl p-4 pb-16 md:pt-8">{children}</main>;
+  }
+
   return (
-    <main className={`mx-auto ${wide ? "max-w-4xl" : "max-w-2xl"} p-4 pb-16`}>
-      {nav && <Nav />}
-      {children}
-    </main>
+    <div className="min-h-screen md:flex">
+      <Nav />
+      <main className="min-w-0 flex-1">
+        <div className={`mx-auto ${wide ? "max-w-6xl" : "max-w-3xl"} p-4 pb-16 md:p-8`}>{children}</div>
+      </main>
+    </div>
   );
 }
