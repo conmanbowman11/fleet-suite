@@ -271,7 +271,7 @@ function BatchForm() {
                       <label className="flex items-center gap-3">
                         <input
                           type="checkbox"
-                          className="h-5 w-5 accent-[#D9480F]"
+                          className="h-5 w-5 accent-[#1E5BA8]"
                           checked={row.checked}
                           onChange={(e) => updateRow(j.id, { checked: e.target.checked })}
                         />
@@ -300,7 +300,7 @@ function BatchForm() {
                               <li key={k.id} className="flex items-center gap-2 text-sm">
                                 <input
                                   type="checkbox"
-                                  className="h-4 w-4 accent-[#D9480F]"
+                                  className="h-4 w-4 accent-[#1E5BA8]"
                                   checked={p?.checked ?? false}
                                   onChange={(e) =>
                                     updateRow(j.id, {
