@@ -13,7 +13,7 @@ import type { Key } from "@/lib/i18n";
 import { AppPage, ErrorText, Field, Loading, btnPrimary, btnQuiet, inputCls, labelCls } from "@/components/ui";
 
 const PRIORITIES: { value: "urgent" | "normal" | "low"; key: Key; on: string }[] = [
-  { value: "urgent", key: "priority_urgent", on: "border-safety bg-safety text-white" },
+  { value: "urgent", key: "priority_urgent", on: "border-danger bg-danger text-white" },
   { value: "normal", key: "priority_normal", on: "border-steel bg-steel text-white" },
   { value: "low", key: "priority_low", on: "border-faded bg-faded text-white" },
 ];
