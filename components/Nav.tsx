@@ -1,7 +1,7 @@
 "use client";
 
 // THE TAB BAR at the top of every main screen.
-// Shows the farm, who's working, and the five tabs.
+// Shows the farm, who's working, and the five tabs (all fit on a phone).
 // "Switch user" only appears on shared devices - a personal device
 // is changed in Settings → This device.
 
@@ -44,7 +44,7 @@ export default function Nav() {
           </button>
         )}
       </div>
-      <nav className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-seam">
+      <nav className="flex justify-between border-b border-seam sm:justify-start sm:gap-2">
         {tabs.map((tab) => {
           const active = pathname.startsWith(tab.path);
           return (
@@ -53,7 +53,7 @@ export default function Nav() {
               href={tab.path}
               aria-current={active ? "page" : undefined}
               className={
-                "shrink-0 px-3 py-2 text-sm font-bold uppercase tracking-wider " +
+                "whitespace-nowrap px-1 py-2 text-center text-[11px] font-bold uppercase sm:px-3 sm:text-sm sm:tracking-wider " +
                 (active ? "border-b-2 border-safety text-ink" : "text-faded hover:text-ink")
               }
             >
