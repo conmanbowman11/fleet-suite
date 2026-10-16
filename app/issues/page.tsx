@@ -28,9 +28,9 @@ import {
 
 const RANK = { urgent: 0, normal: 1, low: 2 } as const;
 const PRIORITY: Record<Issue["priority"], { key: Key; cls: string }> = {
-  urgent: { key: "priority_urgent", cls: "bg-safety text-white" },
-  normal: { key: "priority_normal", cls: "bg-steel text-white" },
-  low: { key: "priority_low", cls: "bg-seam text-faded" },
+  urgent: { key: "priority_urgent", cls: "bg-danger text-white" },
+  normal: { key: "priority_normal", cls: "bg-tint text-[#123E73]" },
+  low: { key: "priority_low", cls: "bg-[#EDF1F5] text-faded" },
 };
 
 export default function IssuesPage() {
@@ -123,7 +123,7 @@ function IssueList() {
                   <span
                     className={`rounded px-2 py-0.5 text-xs font-bold tracking-wider ${PRIORITY[i.priority].cls}`}
                   >
-                    {t(PRIORITY[i.priority].key).toUpperCase()}
+                    {t(PRIORITY[i.priority].key)}
                   </span>
                   <MachineName id={i.equipment_id} />
                 </div>
