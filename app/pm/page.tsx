@@ -135,7 +135,7 @@ function PmBoard() {
       {openIssues > 0 && (
         <Link
           href="/issues"
-          className="mb-4 block rounded-lg border-2 border-safety bg-plate p-3 font-semibold text-safety"
+          className="mb-4 block rounded-lg border border-danger/30 bg-dangerSoft p-3 font-semibold text-danger"
         >
           ⚠ {t("open_issues_n", { n: openIssues })} →
         </Link>
