@@ -43,6 +43,7 @@ const en = {
   offline_error: "No connection. Check your signal and try again.",
 
   // ---- Navigation ----
+  nav_dashboard: "Dashboard",
   nav_equipment: "Equipment",
   nav_pm: "PM",
   nav_issues: "Issues",
@@ -184,10 +185,10 @@ const en = {
   name_new: "+ Add “{text}” as a new name",
 
   // ---- Status badges ----
-  status_overdue: "OVERDUE",
-  status_due_soon: "DUE SOON",
+  status_overdue: "Overdue",
+  status_due_soon: "Due soon",
   status_ok: "OK",
-  status_no_record: "NO RECORD",
+  status_no_record: "No record",
   days_past: "{n} days past due",
   due_in_days: "due in {n} days",
   next_by: "next by {date}",
@@ -259,6 +260,12 @@ const en = {
 
   // ---- PM ----
   pm_title: "Preventive maintenance",
+  stat_active: "Active machines",
+  stat_overdue: "Overdue",
+  stat_due_soon: "Due soon",
+  stat_open_issues: "Open issues",
+  view_all: "View all",
+  all_caught_up: "Nothing needs attention right now.",
   needs_attention: "Needs attention",
   needs_attention_hint: "Calendar services that are late, coming due, or never logged.",
   check_meter: "Check the meter",
@@ -352,6 +359,7 @@ const es: Record<Key, string> = {
   offline_error: "Sin conexión. Revise la señal e intente de nuevo.",
 
   // ---- Navigation ----
+  nav_dashboard: "Panel",
   nav_equipment: "Equipo",
   nav_pm: "Mant.",
   nav_issues: "Problemas",
@@ -493,10 +501,10 @@ const es: Record<Key, string> = {
   name_new: "+ Agregar “{text}” como nombre nuevo",
 
   // ---- Status badges ----
-  status_overdue: "VENCIDO",
-  status_due_soon: "PRÓXIMO",
-  status_ok: "AL DÍA",
-  status_no_record: "SIN REGISTRO",
+  status_overdue: "Vencido",
+  status_due_soon: "Próximo",
+  status_ok: "Al día",
+  status_no_record: "Sin registro",
   days_past: "{n} días vencido",
   due_in_days: "vence en {n} días",
   next_by: "próximo antes del {date}",
@@ -568,6 +576,12 @@ const es: Record<Key, string> = {
 
   // ---- PM ----
   pm_title: "Mantenimiento preventivo",
+  stat_active: "Máquinas activas",
+  stat_overdue: "Vencidos",
+  stat_due_soon: "Próximos",
+  stat_open_issues: "Problemas abiertos",
+  view_all: "Ver todo",
+  all_caught_up: "Nada requiere atención por ahora.",
   needs_attention: "Requiere atención",
   needs_attention_hint: "Servicios por calendario vencidos, próximos o nunca registrados.",
   check_meter: "Revisar el medidor",
