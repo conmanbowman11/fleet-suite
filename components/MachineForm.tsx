@@ -83,20 +83,20 @@ export default function MachineForm({
           </Field>
         </div>
         <Field label={t("unit_number")}>
-          <input className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="07" />
+          <input className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder={t("unit_placeholder")} />
         </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <Field label={t("make")}>
-          <input className={inputCls} value={make} onChange={(e) => setMake(e.target.value)} placeholder="CAT" />
+          <input className={inputCls} value={make} onChange={(e) => setMake(e.target.value)} placeholder={t("make_placeholder")} />
         </Field>
         <Field label={t("model")}>
           <input
             className={inputCls}
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="Challenger 765C"
+            placeholder={t("model_placeholder")}
           />
         </Field>
       </div>
