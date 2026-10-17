@@ -63,7 +63,7 @@ export default function SetupPage() {
           value={farmName}
           onChange={(e) => setFarmName(e.target.value)}
           className={inputCls}
-          placeholder="Bowman Family Farms"
+          placeholder={t("farm_name_placeholder")}
         />
         <ErrorText>{message}</ErrorText>
         <button type="submit" disabled={busy} className={`${btnPrimary} w-full`}>
